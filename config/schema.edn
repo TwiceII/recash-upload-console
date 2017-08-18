@@ -1,0 +1,239 @@
+ ;; группа измерений
+[{:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :dim-group/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid группы измерения"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :dim-group/name,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Название группы измерения"}
+ {:db/valueType :db.type/boolean,
+  :db/ident :dim-group/editable?,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Признак, можно ли редактировать группу"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :dim-group/css-class,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "css класс группы"}
+ {:db/valueType :db.type/long,
+  :db/ident :dim-group/order-index,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "очередность группы начиная слева"}
+
+ ;; измерение
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :dimension/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid измерения"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :dimension/name,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Название измерения"}
+ {:db/valueType :db.type/ref,
+  :db/ident :dimension/group,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Группа, к которой относится измерение"}
+
+ ;; запись
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :entry/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid записи"}
+ {:db/valueType :db.type/double,
+  :db/ident :entry/summ,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Сумма записи"}
+ {:db/valueType :db.type/instant,
+  :db/index true,
+  :db/ident :entry/date,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Дата записи"}
+ {:db/valueType :db.type/ref,
+  :db/ident :entry/v-flow,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Тип потока записи (приток/отток)"}
+ {:db/valueType :db.type/ref,
+  :db/ident :entry/v-type,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Тип записи (факт/план)"}
+ {:db/valueType :db.type/ref,
+  :db/ident :entry/dims,
+  :db/cardinality :db.cardinality/many,
+  :db/doc "Измерения записи"}
+ {:db/valueType :db.type/boolean,
+  :db/ident :entry/editable?,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Признак, можно ли редактировать запись"}
+
+ ;; правило
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :rule/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid правила"}
+ {:db/valueType :db.type/ref,
+  :db/ident :rule/from,
+  :db/cardinality :db.cardinality/many,
+  :db/doc "Измерения источника (левая сторона) правила"}
+ {:db/valueType :db.type/ref,
+  :db/ident :rule/to,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Измерение производной (правая сторона) правила"}
+
+ ;; таблица правил
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :rule-table/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid таблицы правил"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :rule-table/name,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Название таблицы"}
+ {:db/valueType :db.type/ref,
+  :db/ident :rule-table/groups-from,
+  :db/cardinality :db.cardinality/many,
+  :db/doc "группы измерений источника"}
+ {:db/valueType :db.type/ref,
+  :db/ident :rule-table/group-to,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "группа измерения производной"}
+ {:db/valueType :db.type/boolean,
+  :db/ident :rule-table/deletable?,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Признак, можно ли удалить таблицу"}
+ {:db/valueType :db.type/ref,
+  :db/isComponent true,
+  :db/ident :rule-table/rules,
+  :db/cardinality :db.cardinality/many,
+  :db/doc "правила, входящие в таблицу"}
+
+ ;; idents по записям
+ {:db/ident :plan}
+ {:db/ident :fact}
+ {:db/ident :inflow}
+ {:db/ident :outflow}
+
+ ;; юзеры
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :app-user/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid юзера"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :app-user/login,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "логин юзера"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :app-user/password,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "пароль юзера в хэшированном виде"}
+ {:db/valueType :db.type/ref,
+  :db/ident :app-user/role,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "роль юзера (см. role-idents)"}
+ {:db/valueType :db.type/instant,
+  :db/index true,
+  :db/ident :app-user/last-login,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "дата последнего входа пользователя"}
+ {:db/ident :admin}
+ {:db/ident :viewer}
+ {:db/ident :user}
+
+ ;; доп.схема для 1С
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :dimension/uuid-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "UUID c 1С"}
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :entry/uuid-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "uuid с 1С"}
+ {:db/valueType :db.type/instant,
+  :db/index true,
+  :db/ident :entry/upload-date-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "дата и время загрузки записи"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/doc-type-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Тип документа с 1С"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/number-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Рег.номер 1С"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/purpose-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Назначение платежа 1С"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/comment-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Комментарий платежа с 1С"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/booking-account-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Счет учета"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/in-number-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Вх.номер документа с 1С"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/in-date-str-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Дата вх.документа с 1С"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :entry/currency-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Валюта с 1С"}
+ {:db/valueType :db.type/double,
+  :db/ident :entry/currency-rate-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Курс валюты с 1С"}
+ {:db/valueType :db.type/double,
+  :db/ident :entry/currency-summ-1c,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Сумма в валюте с 1С"}
+
+ ;; пакеты обработки с 1С
+ {:db/unique :db.unique/identity,
+  :db/valueType :db.type/uuid,
+  :db/ident :package-1c/uuid,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "UUID пакета"}
+ {:db/valueType :db.type/string,
+  :db/fulltext true,
+  :db/ident :package-1c/number,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Номер пакета"}
+ {:db/valueType :db.type/instant,
+  :db/index true,
+  :db/ident :package-1c/processing-date,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Дата обработки пакета"}
+ {:db/valueType :db.type/ref,
+  :db/ident :package-1c/status,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Статус обработки пакета (см. status-idents)"}
+ {:db/ident :success}
+ {:db/ident :failure}]

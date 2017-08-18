@@ -1,0 +1,26 @@
+  ;; Группы измерений по умолчанию
+[{:dim-group/uuid (recash-upload-console.core/squuid)
+  :dim-group/name "Контрагенты"
+  :dim-group/editable? false
+  :dim-group/css-class "dim-1"
+  :dim-group/order-index 1}
+ {:dim-group/uuid (recash-upload-console.core/squuid)
+  :dim-group/name "Договоры"
+  :dim-group/editable? false
+  :dim-group/css-class "dim-2"
+  :dim-group/order-index 2}
+ {:dim-group/uuid (recash-upload-console.core/squuid)
+  :dim-group/name "Счета"
+  :dim-group/editable? false
+  :dim-group/css-class "dim-3"
+  :dim-group/order-index 3}
+ {:dim-group/uuid (recash-upload-console.core/squuid)
+  :dim-group/name "Статьи"
+  :dim-group/editable? true
+  :dim-group/css-class "dim-4"
+  :dim-group/order-index 4}
+;; Юзеры по умолчанию
+ {:app-user/uuid (recash-upload-console.core/squuid)
+  :app-user/login "test"
+  :app-user/password (recash-upload-console.core/md5 "test")
+  :app-user/role :admin}]
