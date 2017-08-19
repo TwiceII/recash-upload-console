@@ -1,3 +1,5 @@
 {:db-uri "datomic:sql://recash-local?jdbc:postgresql://localhost:5432/recash-local?user=datomic&password=datomic"
  :init-data-edn-path "config/init-data.edn"
- :schema-edn-path "config/schema.edn"}
+ :schema-edn-path "config/schema.edn"
+ :files-proc-edn-path "config/file_processings.edn"
+ :upload-configs-path "config/upload_configs.edn"}

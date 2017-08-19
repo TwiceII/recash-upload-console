@@ -1,0 +1,18 @@
+{:bdr-entries {:file-name "import_files/bdr_entries.csv"
+               :processing-id :processing-bdr-entries
+               :processing-type [:csv :local-file]}
+ :rule-tables {:file-name "import_files/mir-rules.csv"
+               :processing-id :processing-rule-table
+               :processing-type [:csv :local-file]}
+ :csv-entries {:file-name "import_files/entries.csv"
+               :processing-id :processing-csv-entries
+               :processing-type [:csv :local-file]}
+ :test-csv    {:file-name "import_files/entries-new.csv"
+               :processing-id :test-processing
+               :processing-type [:csv :local-file]}
+ :mir-entries {:file-name "import_files/mir-entries.csv"
+               :processing-id :processing-mir-csv-entries
+               :processing-type [:csv :local-file]}
+ :pervichka-1c {:file-name "import_files/pervichka_test.xml"
+                :processing-id :processing-1c-local-xml
+                :processing-type [:xml :local-file]}}

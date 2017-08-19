@@ -1,0 +1,385 @@
+{:processing-csv-entries
+  {:id        :processing-csv-entries
+   :name      "Обработка csv файла с данными по записям"
+   :stages ;; этапы обработки
+    ;; предварительное создание групп измерений
+    [
+     {:stage-id       :precreate-dim-groups
+      :stage-type     :process-self
+      :run-when       :always ;; :always [:id_stage] :no-errors
+      :process-ent    :dim-groups
+      :process-data   [{:name "Контрагенты"
+                        :editable? false
+                        :css-class "dim-1"
+                        :order-index 1}
+                       {:name "Договоры"
+                        :editable? false
+                        :css-class "dim-2"
+                        :order-index 2}
+                       {:name "Счета"
+                        :editable? false
+                        :css-class "dim-3"
+                        :order-index 3}
+                       {:name "Статьи"
+                        :editable? true
+                        :css-class "dim-4"
+                        :order-index 4}]}
+     ;; считывание записей с csv и обработка
+     {:stage-id          :add-entries
+      :stage-type        :process-source
+      :run-when          [:precreate-dim-groups]
+      :source-processing :by-item ;; [:by-item, :batch]
+      :parse-params {:parse-type :csv ;; тип парсинга
+                     :parse-to   :entry
+                     :mappings {0 {:display-name "Тип потока"
+                                   :field :v-flow
+                                   :type  :match
+                                   :params {:matches {"1" :inflow
+                                                      "0"  :outflow}}}
+                                1 {:display-name "Тип движения"
+                                   :field :v-type
+                                   :type  :match
+                                   :params {:matches {"факт" :fact
+                                                      "план" :plan}}}
+                                2 {:display-name "Счет"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Счета"}}
+
+                                3 {:display-name "Контрагент"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Контрагенты"}}
+
+                                4 {:display-name "Договор"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Договоры"}}
+
+                                5 {:display-name "Сумма"
+                                   :field :v-summ
+                                   :type  :double}
+
+                                6 {:display-name "Дата"
+                                   :field :date
+                                   :type  :date}}
+                     ;; добавляем поля по умолчанию
+                     :transform-post {:ent-k :add-defaults
+                                      :params {:editable? false}}}}]}
+
+
+ :processing-rule-table
+  {:id      :processing-rule-table
+   :name    "Обработка таблицы соответствий"
+   :stages
+    ;; создание таблицы правил
+    [{:stage-id     :precreate-rule-table
+      :stage-type   :process-self
+      :run-when     :always
+      :process-ent  :rule-table
+      :process-data {:rule-table/name        "Статьи через контрагента и договор"
+                     :rule-table/groups-from ["Контрагенты" "Договоры"]
+                     :rule-table/group-to    "Статьи"
+                     :rule-table/deletable?  false}}
+     ;; добавление правил в таблицу
+     {:stage-id          :add-rules
+      :stage-type        :process-source
+      :run-when          [:precreate-rule-table]
+      :source-processing :by-item
+      :parse-params
+        {:parse-type  :csv
+         :parse-to    :rule
+         :mappings    {0 {:display-name "Контрагент"
+                          :field        :dims-from
+                          :type         :custom
+                          :params       {:group-name "Контрагенты"}}
+                       1 {:display-name "Договор"
+                          :field        :dims-from
+                          :type         :custom
+                          :params       {:group-name "Договоры"}}
+                       2 {:display-name "Статья"
+                          :field        :dim-to
+                          :type         :custom
+                          :params       {:group-name "Статьи"}}}
+         ;; нужно доп-но применить ф-цию после мэппингов
+         :transform-post {:ent-k :rules-for-table
+                          :params {:rule-table/name "Статьи через контрагента и договор"}}}}]}
+
+ :processing-bdr-entries
+  {:id   :processing-bdr-entries
+   :name "Обработка таблицы БДР"
+   :stages
+    [{:stage-id          :add-entries
+      :stage-type        :process-source
+      :run-when          :always
+      :source-processing :by-item ;; [:by-item, :batch]
+      :parse-params {:parse-type :csv ;; тип парсинга
+                     :parse-to   :entry
+                     :mappings {0 {:display-name "Тип потока"
+                                   :field :v-flow
+                                   :type  :match
+                                   :params {:matches {"1" :inflow
+                                                      "0" :outflow}}}
+
+                                1 {:display-name "Статья"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Статьи"}}
+
+                                2 {:display-name "Счет"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Счета"}}
+
+                                3 {:display-name "Дата"
+                                   :field :date
+                                   :type  :date}
+
+                                4 {:display-name "Сумма"
+                                   :field :v-summ
+                                   :type  :double}}
+
+                     ;; добавляем поля по умолчанию
+                     :transform-post {:ent-k :add-defaults
+                                      :params {:editable? true
+                                               :v-type :plan}}}}]}
+
+
+ :processing-mir-csv-entries
+  {:id        :processing-mir-csv-entries
+   :name      "Обработка csv файла от Мира с данными по записям"
+   :stages ;; этапы обработки
+    ;; предварительное создание групп измерений
+    [
+     {:stage-id       :precreate-dim-groups
+      :stage-type     :process-self
+      :run-when       :always ;; :always [:id_stage] :no-errors
+      :process-ent    :dim-groups
+      :process-data   [{:name "Контрагенты"
+                        :editable? false
+                        :css-class "dim-1"
+                        :order-index 1}
+                       {:name "Договоры"
+                        :editable? false
+                        :css-class "dim-2"
+                        :order-index 2}
+                       {:name "Счета"
+                        :editable? false
+                        :css-class "dim-3"
+                        :order-index 3}
+                       {:name "Статьи"
+                        :editable? true
+                        :css-class "dim-4"
+                        :order-index 4}]}
+     ;; считывание записей с csv и обработка
+     {:stage-id          :add-entries
+      :stage-type        :process-source
+      :run-when          [:precreate-dim-groups]
+      :source-processing :by-item ;; [:by-item, :batch]
+      :parse-params {:parse-type :csv ;; тип парсинга
+                     :parse-to   :entry
+                     :mappings {0 {:display-name "Тип потока"
+                                   :field :v-flow
+                                   :type  :match
+                                   :params {:matches {"Приток" :inflow
+                                                      "Отток"  :outflow}}}
+                                1 {:display-name "Счет"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Счета"}}
+
+                                ; 2 (статью пропускаем)
+
+                                3 {:display-name "Контрагент"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Контрагенты"}}
+
+                                4 {:display-name "Договор"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Договоры"}}
+
+                                5 {:display-name "Сумма"
+                                   :field :v-summ
+                                   :type  :double}
+
+                                6 {:display-name "Дата"
+                                   :field :date
+                                   :type  :date}}
+                     ;; добавляем поля по умолчанию
+                     :transform-post {:ent-k :add-defaults
+                                      :params {:editable? false
+                                               :v-type :fact}}}}]}
+ :processing-1c-local-xml
+  {:id  :processing-1c-local-xml
+   :name "Обработка xml с первички 1С"
+   :stages
+   [{:stage-id          :process-xml
+     :stage-type        :process-source
+     :run-when          :always
+     :source-processing :by-item
+     :parse-params {:parse-type :xml
+                    :parse-to   :entry-1c
+                    :item-tag   :Entry
+                    :inner-fields  [:Operation
+                                    :UUID
+                                    :DocumentType
+                                    :FlowType
+                                    :Number
+                                    :Date
+                                    :Sum
+                                    :Currency
+                                    :SumInCurrency
+                                    :CurrencyRate
+                                    :Comment
+                                    :Purpose
+                                    :BookingAccount
+                                    :IncomingNumber
+                                    :IncomingDate
+                                    [:Contractor [:Name :UUID]]
+                                    [:Contract [:Name :UUID]]
+                                    [:BankAccount [:Name :UUID]]]
+                    :mappings
+                     {:UUID {:display-name "1С UUID записи"
+                             :field :uuid-1c
+                             :type :uuid}
+                      :Operation {:display-name "Тип операции"
+                                  :field :op-type
+                                  :type :match
+                                  :params {:matches {"U" :U
+                                                     "D" :D}}}
+                      :DocumentType {:display-name "Тип документа"
+                                     :field :doc-type-1c
+                                     :type :str}
+                      :FlowType {:display-name "Тип потока"
+                                 :field :v-flow
+                                 :type :match
+                                 :params {:matches {"inflow" :inflow
+                                                    "outflow" :outflow}}}
+                      :Number         {:display-name "Рег. номер"
+                                       :field :number-1c
+                                       :type :str}
+                      :Date           {:display-name "Дата"
+                                       :field :date
+                                       :type :date}
+                      :Sum            {:display-name "Сумма"
+                                       :field :summ
+                                       :type :double}
+                      :Currency       {:display-name "Валюта"
+                                       :field :currency-1c
+                                       :type :str}
+                      :CurrencyRate   {:display-name "Курс валюты"
+                                       :field :currency-rate-1c
+                                       :type :double}
+                      :SumInCurrency  {:display-name "Сумма в валюте"
+                                       :field :currency-summ-1c
+                                       :type :double}
+                      :BookingAccount {:display-name "Счет учета"
+                                       :field :booking-account-1c
+                                       :type :str}
+                      :IncomingNumber {:display-name "Вх.номер документа"
+                                       :field :in-number-1c
+                                       :type :str}
+                      :IncomingDate   {:display-name "Дата вх.док-та"
+                                       :field :in-date-str-1c
+                                       :type :str}
+                      ; :Organization   {:display-name "Организация"
+                      ;                  :field :dims
+                      ;                  :type :custom
+                      ;                  :params {:group-name "Организация"}}
+                                       ;  :params {:nested {:UUID ""}}}
+                      :BankAccount    {:display-name "Банковский счет"
+                                       :field :dims
+                                       :type :custom
+                                       :params {:group-name "Счета"}}
+                      :Contractor     {:display-name "Контрагент"
+                                       :field :dims
+                                       :type :custom
+                                       :params {:group-name "Контрагенты"}}
+                      :Contract       {:display-name "Договор"
+                                       :field :dims
+                                       :type :custom
+                                       :params {:group-name "Договоры"}}
+                      :Purpose        {:display-name "Назначение платежа"
+                                       :field :purpose-1c
+                                       :type :str}
+                      :Comment        {:display-name "Комментарий"
+                                       :field :comment-1c
+                                       :type :str}}
+                    ;; предобработка (проверка типа операции удаление или доб/ред.)
+                    ; :transform-pre {:ent-k :check-op-type}
+
+                    ;; поля по умолчанию
+                    :transform-post {:ent-k :transform-1c-entry
+                                     :params {:editable? false
+                                              :v-type    :fact}}}}]}
+
+ :test-processing
+  {:id        :test-processing
+   :name      "Обработка csv файла с данными по записям"
+   :stages ;; этапы обработки
+    ;; предварительное создание групп измерений
+    [
+     ; {:stage-id       :precreate-dim-groups
+     ;  :stage-type     :process-self
+     ;  :run-when       :always ;; :always [:id_stage] :no-errors
+     ;  :process-ent    :dim-groups
+     ;  :process-data   [{:name "Контрагенты"
+     ;                    :editable? false
+     ;                    :css-class "dim-1"
+     ;                    :order-index 1}
+     ;                   {:name "Договоры"
+     ;                    :editable? false
+     ;                    :css-class "dim-2"
+     ;                    :order-index 2}
+     ;                   {:name "Счета"
+     ;                    :editable? false
+     ;                    :css-class "dim-3"
+     ;                    :order-index 3}
+     ;                   {:name "Статьи"
+     ;                    :editable? true
+     ;                    :css-class "dim-4"
+     ;                    :order-index 4}]}
+     ;; считывание записей с csv и обработка
+     {:stage-id          :add-entries
+      :stage-type        :process-source
+      :run-when          :always
+      :source-processing :by-item ;; [:by-item, :batch]
+      :parse-params {:parse-type :csv ;; тип парсинга
+                     :parse-to   :entry
+                     :mappings {0 {:display-name "Тип потока"
+                                   :field :v-flow
+                                   :type  :match
+                                   :params {:matches {"1" :inflow
+                                                      "0"  :outflow}}}
+                                1 {:display-name "Тип движения"
+                                   :field :v-type
+                                   :type  :match
+                                   :params {:matches {"факт" :fact
+                                                      "план" :plan}}}
+                                2 {:display-name "Счет"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Счета"}}
+
+                                3 {:display-name "Контрагент"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Контрагенты"}}
+
+                                4 {:display-name "Договор"
+                                   :field :dims
+                                   :type  :custom
+                                   :params {:group-name "Договоры"}}
+
+                                5 {:display-name "Сумма"
+                                   :field :v-summ
+                                   :type  :double}
+
+                                6 {:display-name "Дата"
+                                   :field :date
+                                   :type  :date}}
+                     ;; добавляем поля по умолчанию
+                     :transform-post {:ent-k :add-defaults
+                                      :params {:editable? false}}}}]}}
