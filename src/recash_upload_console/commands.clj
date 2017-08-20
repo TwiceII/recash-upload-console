@@ -4,9 +4,10 @@
             [clojure.pprint :refer [pprint]]
             [clojure.string :as cljstr]
             [recash-upload-console.domain.db-manager :as dbm]
+            [recash-upload-console.domain.datomic-utils :as du]
             [recash-upload-console.data-upload.processing-manager :as pm]))
 
-
+;; -- Команды -----------------------------------------------------------------
 (defn exit-cmd
   "Команда для выхода из консоли"
   [_]
@@ -46,10 +47,27 @@
     (println "db created successfully")))
 
 
+(defn transact-edn-cmd
+  "Команда для загрузки tx данных в БД из edn файла"
+  [settings [edn-file-name]]
+  (println "----------------------------------------")
+  (println "Transacting txs from file: " edn-file-name)
+  (let [conn (dbm/new-conn (:db-uri settings))
+        txs  (-> edn-file-name
+                 slurp
+                 edn/read-string
+                 eval)]
+    (du/transact-and-return conn txs)
+    (println "----------------------------------------")
+    (println "txs transacted successfully")))
+
+
+;; -- Остальные функции -------------------------------------------------------
 (def commands-map
   "Мэп со всеми доступными командами"
   {"init-db"        init-db-cmd
    "run-processing" run-processing-cmd
+   "transact-edn"   transact-edn-cmd
    "exit"           exit-cmd})
 
 

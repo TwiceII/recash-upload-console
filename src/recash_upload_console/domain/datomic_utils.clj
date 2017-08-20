@@ -12,12 +12,15 @@
 ;; -- Служебные функции -------------------------------------------------------
 (defn transact-and-return
   "Выполнить транзакцию и вернуть результат"
-  [conn txs-coll]
-  (let [txs (into [] txs-coll)] ;; переводим в векторную форму
-    (log/debug :msg (str "transaction: " txs))
-    (println "-- transacted txs:")
-    (pprint txs)
-    (deref (d/transact conn txs))))
+  ([conn txs-coll]
+   (transact-and-return conn txs-coll true))
+  ([conn txs-coll wrap-in-vector?]
+   (let [txs (cond-> txs-coll
+                     wrap-in-vector?  (into []))] ;; переводим в векторную форму
+     (log/debug :msg (str "transaction: " txs))
+     (println "-- transacted txs:")
+     (pprint txs)
+     (deref (d/transact conn txs)))))
 
 
 (defn new-uuid

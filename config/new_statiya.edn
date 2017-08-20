@@ -1,0 +1,3 @@
+[{:dimension/uuid (recash-upload-console.domain.datomic-utils/new-uuid)
+  :dimension/name "Входящие остатки"
+  :dimension/group [:dim-group/uuid #uuid "5997ebcb-e45e-41f8-96ad-e06cbb523eff"]}]

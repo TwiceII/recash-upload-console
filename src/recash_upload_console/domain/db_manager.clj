@@ -4,6 +4,10 @@
             [clojure.pprint :refer [pprint]]
             [recash-upload-console.domain.datomic-utils :as du]))
 
+(defn new-conn
+  "Получить новое подключение"
+  [db-uri]
+  (d/connect db-uri))
 
 
 (defn init-from-scratch
@@ -13,7 +17,7 @@
   (d/delete-database db-uri)
   (d/create-database db-uri)
   ;; новое подключение
-  (let [conn (d/connect db-uri)]
+  (let [conn (new-conn db-uri)]
     ;; datofu функции и схемы
     (du/transact-and-return conn (datofu.all/schema-tx))
     ;; загружаем все схемы
