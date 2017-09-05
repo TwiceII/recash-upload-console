@@ -22,6 +22,20 @@
   :db/ident :dim-group/order-index,
   :db/cardinality :db.cardinality/one,
   :db/doc "очередность группы начиная слева"}
+ {:db/valueType :db.type/ref
+  :db/ident :dim-group/group-type
+  :db/cardinality :db.cardinality/one
+  :db/doc "Тип группы (основная или вспомогательная)"}
+ {:db/valueType :db.type/instant
+  :db/index true
+  :db/ident :dim-group/created-datetime
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Дата добавления группы"}
+
+;; idents по типам групп
+ {:db/ident :primary}
+ {:db/ident :aux}
+
 
  ;; измерение
  {:db/unique :db.unique/identity,
@@ -38,6 +52,10 @@
   :db/ident :dimension/group,
   :db/cardinality :db.cardinality/one,
   :db/doc "Группа, к которой относится измерение"}
+ {:db/valueType :db.type/boolean
+  :db/ident :dimension/editable?,
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Признак, можно ли редактировать измерение"}
 
  ;; запись
  {:db/unique :db.unique/identity,
@@ -85,6 +103,10 @@
   :db/ident :rule/to,
   :db/cardinality :db.cardinality/one,
   :db/doc "Измерение производной (правая сторона) правила"}
+ {:db/valueType :db.type/ref
+  :db/ident :rule/v-flow
+  :db/cardinality :db.cardinality/one
+  :db/doc "Тип потока (если указано в таблице)"}
 
  ;; таблица правил
  {:db/unique :db.unique/identity,
@@ -114,6 +136,10 @@
   :db/ident :rule-table/rules,
   :db/cardinality :db.cardinality/many,
   :db/doc "правила, входящие в таблицу"}
+ {:db/valueType :db.type/boolean
+  :db/ident :rule-table/with-v-flow?
+  :db/cardinality :db.cardinality/one
+  :db/doc "признак, что учитывается тип потока"}
 
  ;; idents по записям
  {:db/ident :plan}
@@ -236,4 +262,23 @@
   :db/cardinality :db.cardinality/one,
   :db/doc "Статус обработки пакета (см. status-idents)"}
  {:db/ident :success}
- {:db/ident :failure}]
+ {:db/ident :failure}
+
+ ;; общие аттрибуты для потенциально импортированных сущностей (измерений и записей)
+ {:db/ident       :source/name
+  :db/doc         "Источник сущности"
+  :db/valueType   :db.type/string
+  :db/cardinality :db.cardinality/one}
+ {:db/ident       :source/frgn-str-id
+  :db/doc         "Строковое id импорт.сущности"
+  :db/valueType   :db.type/string
+  :db/cardinality :db.cardinality/one}
+ {:db/ident       :source/frgn-uuid
+  :db/doc         "UUID импорт.сущности"
+  :db/valueType   :db.type/uuid
+  :db/cardinality :db.cardinality/one}
+ {:db/ident       :source/imported-datetime
+  :db/doc         "Дата и время импорта"
+  :db/valueType   :db.type/instant
+  :db/index       true
+  :db/cardinality :db.cardinality/one}]

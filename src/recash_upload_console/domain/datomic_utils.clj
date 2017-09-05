@@ -51,6 +51,25 @@
 
 
 ;; -- Хэлперы функции ---------------------------------------------------------
+(defn attr-val->e
+  "Получить список entity по аттрибуту и значению"
+  [conn attr val]
+  (let [db (d/db conn)]
+    (->> (d/q {:find ['[?e ...]]
+               :in '[$ ?v]
+               :where [['?e attr '?v]]}
+              db val)
+         (map #(d/entity db %))
+         not-empty)))
+
+
+(defn attr-val->e-single
+  "Получить одно entity по аттрибуту и значению"
+  [conn attr val]
+  (first (attr-val->e conn attr val)))
+
+
+
 (defn q-by-uuid [attrs]
   "Получить динамический datalog запрос"
   (apply conj '[:find] (list 'pull '?e attrs)

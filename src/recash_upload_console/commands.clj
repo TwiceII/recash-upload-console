@@ -47,6 +47,19 @@
     (println "db created successfully")))
 
 
+(defn ensure-schema-cmd
+  "Команда для установки схемы БД (idempotent) из schema.edn файла"
+  [settings]
+  (println "----------------------------------------")
+  (println "Ensuring schema...")
+  (let [{:keys [db-uri schema-edn-path]} settings
+        conn       (dbm/new-conn db-uri)
+        schema-txs (edn/read-string (slurp schema-edn-path))]
+    (du/transact-and-return conn schema-txs)
+    (println "----------------------------------------")
+    (println "Schema ensured successfully")))
+
+
 (defn transact-edn-cmd
   "Команда для загрузки tx данных в БД из edn файла"
   [settings [edn-file-name]]
@@ -65,10 +78,11 @@
 ;; -- Остальные функции -------------------------------------------------------
 (def commands-map
   "Мэп со всеми доступными командами"
-  {"init-db"        init-db-cmd
-   "run-processing" run-processing-cmd
-   "transact-edn"   transact-edn-cmd
-   "exit"           exit-cmd})
+  {"init-db"           init-db-cmd
+   "run-processing"    run-processing-cmd
+   "ensure-schema"     ensure-schema-cmd
+   "transact-edn"      transact-edn-cmd
+   "exit"              exit-cmd})
 
 
 (defn read-command-line-loop

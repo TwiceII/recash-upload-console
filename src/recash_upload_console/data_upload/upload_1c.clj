@@ -63,6 +63,7 @@
     (-> {:dimension/uuid (d/squuid)
          :dimension/name dim-name
          :dimension/uuid-1c uuid-1c
+         :dimension/editable? false
          :db/id (temp-1c-dim-id uuid-1c)
          :dimension/group [:dim-group/uuid dg-id]})
     (throw (Exception. (str "Не найдена группа с названием: " group-name)))))
