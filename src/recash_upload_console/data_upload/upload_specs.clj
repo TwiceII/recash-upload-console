@@ -155,3 +155,61 @@
         :delete
         (s/and #(= (:op-type %) :D)
                (s/keys :req-un [::op-type :entry-1c/uuid-1c]))))
+
+;; -- Для source полей
+(s/def :source/name string?)
+(s/def :source/frgn-uuid uuid?)
+(s/def :source/frgn-str-id string?)
+(s/def :source/imported-datetime inst?)
+(s/def :source/required (s/or :w-uuid (s/keys :req [:source/name :source/frgn-uuid]
+                                            :opt [:source/imported-datetime])
+                              :w-str-id (s/keys :req [:source/name :source/frgn-str-id]
+                                                :opt [:source/imported-datetime])))
+(s/def :source/optional (s/keys :req [:source/name]
+                                :opt [:source/imported-datetime]))
+(s/def :source/common (s/or :required :source/required
+                            :none :source/optional))
+
+;; -- Для стандартных entry и dimension ---------------------------------------
+;; standard dim
+(s/def :st-dim/type #{:addable :must-pre-exist})
+(s/def :st-dim/name string?)
+(s/def :st-dim/group-name string?)
+(s/def :st-dim/editable? boolean?)
+
+(s/def ::st-dim
+  (s/or :pre-exist (s/and #(= :must-pre-exist (:st-dim/type %))
+                          (s/merge :source/required
+                                   (s/keys :req [:st-dim/type :st-dim/group-name :st-dim/editable?])))
+        :addable   (s/and #(= :addable (:st-dim/type %))
+                          (s/merge :source/common
+                                   (s/keys :req [:st-dim/type :st-dim/name :st-dim/group-name :st-dim/editable?])))))
+
+; (s/def :st-dim/common (s/keys :req [:st-dim/type :st-dim/name :st-dim/group-name :st-dim/editable?]))
+;
+; (s/def ::st-dim (s/merge :st-dim/common :source/common))
+
+;; standard entry
+(s/def :st-entry/op-type #{:D :U})
+(s/def :st-entry/date inst?)
+(s/def :st-entry/uuid uuid?)
+(s/def :st-entry/summ double?)
+(s/def :st-entry/v-flow #{:inflow :outflow})
+(s/def :st-entry/v-type #{:plan :fact})
+(s/def :st-entry/editable? boolean?)
+(s/def :st-entry/dims (s/coll-of ::st-dim))
+
+(s/def :st-entry/common
+  (s/or :to-delete (s/and #(= :D (:st-entry/op-type %))
+                          (s/keys :req [:st-entry/op-type]))
+        :to-upsert (s/and #(= :U (:st-entry/op-type %))
+                          (s/keys :req [:st-entry/date
+                                        :st-entry/op-type
+                                        :st-entry/summ
+                                        :st-entry/v-flow
+                                        :st-entry/v-type
+                                        :st-entry/editable?
+                                        :st-entry/dims]
+                                  :opt [:st-entry/uuid]))))
+
+(s/def ::st-entry (s/merge :st-entry/common :source/common))

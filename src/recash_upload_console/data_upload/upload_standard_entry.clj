@@ -4,8 +4,194 @@
             [recash-upload-console.domain.db-manager :as dbm]
             [recash-upload-console.common.time-utils :as tu]
             [recash-upload-console.common.utils :as u]
+            [recash-upload-console.data-upload.upload-specs :as upl-s]
+            [recash-upload-console.data-upload.upload-service :as upl]
+            [clojure.spec :as s]
             [datomic.api :as d]))
 
+
+(def db-uri
+  "datomic:sql://recash-local?jdbc:postgresql://localhost:5432/recash-local?user=datomic&password=datomic")
+
+(defn get-conn
+  []
+  (dbm/new-conn db-uri))
+
+
+
+(def st-entry-xml-mappings
+  {:source/name        [:const "1С"]
+   :source/frgn-uuid   [:field :UUID :uuid]
+   :st-entry/op-type   [:field :Operation :match {"U" :U  "D" :D}]
+   :st-entry/date      [:field :Date :date]
+   :st-entry/summ      [:field :Sum :double]
+   :st-entry/v-flow    [:field :FlowType :match {"inflow" :inflow "outflow" :outflow}]
+   :st-entry/v-type    [:const :fact]
+   :st-entry/editable? [:const false]
+   :st-entry/dims      [:custom
+                        :st-entry-dims
+                        {:defaults {:source/name       [:const "1С"]
+                                    :source/frgn-uuid  [:field :UUID :uuid]
+                                    :st-dim/type       [:const :addable]
+                                    :st-dim/name       [:field :Name :str]
+                                    :st-dim/editable?  [:const false]}
+                         :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}}}]})
+                                ; :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
+                                ; :Contract    {:st-dim/group-name [:const "Договоры"]}}}]})
+
+
+(defmulti parsing-custom
+  (fn [item mapping-for parse-custom-key parse-params] parse-custom-key))
+
+(defmulti item-has-field?
+  (fn [mapping-for item field] mapping-for))
+
+
+(defmethod item-has-field? :xml
+  [mapping-for item field]
+  (contains? item field))
+
+(defmulti field-from-item
+  (fn [mapping-for item field] mapping-for))
+
+
+(defmethod field-from-item :xml
+  [mapping-for item field]
+  (get item field))
+
+
+(defn item->via-mv->field
+  [item mapping-v mapping-for]
+  (let [parse-type (first mapping-v)]
+    (case parse-type
+      ;; берем константное значение
+      :const (let [[_ val] mapping-v]
+               val)
+      ;; считываем поле из источника
+      :field (let [[_ field parse-format parse-params] mapping-v]
+               (->> item
+                    ;; если :_this
+                    (#(if (= :_this field)
+                        %                ; то берем само значение,
+                        (if (item-has-field? mapping-for % field) ; TODO: единую форму
+                          (field-from-item mapping-for % field)  ; берем внутреннее поле
+                          (throw (Exception. (str "Not found field: " field " in item: " item))))))
+                    ;; парсим по полю
+                    (upl/parse-by-type {:type parse-format
+                                        :params (if (= parse-format :match)
+                                                  ;; TODO: сделать единую форму
+                                                  {:matches parse-params}
+                                                  parse-params)})))
+      :custom (let [[_ parse-custom-key parse-params] mapping-v]
+                (parsing-custom item mapping-for parse-custom-key parse-params)))))
+
+
+(def test-item
+  {:UUID "568d03ea-be27-4e34-a86f-7ae703a66be4"
+   :Operation "U"
+   :Date "2013-01-22"
+   :Sum "13261737"
+   :FlowType "inflow"
+   :BankAccount {:Name "252160458( рос.рубли ЦКБ)"
+                 :UUID "ac1ca3e9-7014-11e2-8d6d-001d7da1f613"}})
+
+
+
+(defn item->via-mv->mapped-item
+  [item mappings-m mapping-for]
+  (reduce-kv (fn [nm mapping-k mapping-v]
+               (assoc nm mapping-k (item->via-mv->field item mapping-v mapping-for)))
+             {} mappings-m))
+
+
+
+(defmethod parsing-custom :st-entry-dims
+  [item mapping-for parse-custom-key parse-params]
+  (reduce-kv (fn [result-dims dk d-mapping]
+               (if-not (item-has-field? mapping-for item dk)
+                 (throw (Exception. (str "Not found field: " dk " in item: " item)))
+                 (let [current-dim-item (field-from-item mapping-for item dk)
+                       new-st-dim (-> current-dim-item
+                                      (item->via-mv->mapped-item (:defaults parse-params) mapping-for)
+                                      (merge (item->via-mv->mapped-item current-dim-item d-mapping mapping-for)))]
+                   (conj result-dims new-st-dim))))
+             [] (:dims parse-params)))
+
+
+(def mapped-item
+  (item->via-mv->mapped-item
+    test-item
+    st-entry-xml-mappings
+    :xml))
+
+; (s/explain ::recash-upload-console.data-upload.upload-specs/st-entry
+;            mapped-item)
+
+
+; (defn item->st-dims-of-st-entry
+;   [item dims-mapping]
+;   (-> (reduce-kv (fn [result-dims dk d-mapping]
+;                    (let [new-st-dim (->)])))))
+
+
+
+
+(def st-entry-csv-mappings
+  {:source/name        [:const "local-csv"]
+   :st-entry/op-type   [:const :U]
+   :st-entry/v-flow    [:field 0 :match {"Приток" :inflow
+                                         "Отток" :outflow}]
+   :st-entry/summ      [:field 5 :double]
+   :st-entry/date      [:field 6 :date]
+   :st-entry/v-type    [:const :fact]
+   :st-entry/editable? [:const false]
+   :st-entry/dims      {:defaults {:source/name       [:const "local-xml"]
+                                   :st-dim/type       [:const :must-pre-exist]
+                                   :st-dim/name       [:field :_this :string]
+                                   :st-dim/editable?  [:const false]}
+                        :dims
+                         {1 {:st-dim/group-name [:const "Счета"]}
+                          3 {:st-dim/group-name [:const "Контрагенты"]}
+                          4 {:st-dim/group-name [:const "Договоры"]}}}})
+
+
+(def st-entry-json-mappings
+  {:source/name        [:const "ummastore-web-app"]
+   :source/frgn-str-id [:field :id :string]
+   :st-entry/op-type   [:field :opType :match {"U" :U  "D" :D}]
+   :st-entry/date      [:field :date :date]
+   :st-entry/summ      [:field :summ :double]
+   :st-entry/v-flow    [:field :flowType :match {1 :inflow
+                                                 0 :outflow}]
+   :st-entry/v-type    [:const :fact]
+   :st-entry/editable? [:const false]
+   :st-entry/dims      {:defaults {:source/name        [:const "ummastore-web-app"]
+                                   :source/frgn-str-id [:field :_this :string]
+                                   :st-dim/type        [:const :must-pre-exist]
+                                   :st-dim/editable?   [:const false]}
+                        :dims
+                         {:client   {:st-dim/group-name [:const "Клиенты"]}
+                          :store    {:st-dim/group-name [:const "Магазины"]}
+                          :account  {:st-dim/group-name [:const "Кассы UmmaStore"]}
+                          :category {:st-dim/group-name [:const "Категория UmmaStore"]}}}})
+
+
+
+(def convert-to-st-entry
+  {:source/name        [:const "1С"]
+   :source/frgn-uuid   [:field :uuid-1c]
+   :st-entry/op-type   [:field :op-type]
+   :st-entry/date      [:field :date]
+   :st-entry/summ      [:field :summ]
+   :st-entry/v-flow    [:field :v-flow]
+   :st-entry/v-type    [:const :fact]
+   :st-entry/editable? [:const false]
+   :st-entry/dims      {:source/name       [:const "1С"]
+                        :source/frgn-uuid  [:field :uuid-1c]
+                        :st-dim/type       [:const :addable]
+                        :st-dim/name       [:field :name]
+                        :st-dim/group-name [:field :group-name]
+                        :st-dim/editable?  [:const false]}})
 
 (defn id-pair-for-foreign-entity
   [e]
@@ -29,7 +215,6 @@
          first
          (d/entity db)
          not-empty)))
-
 
 
 (def e-of-foreign-entry (partial e-of-foreign-entity :entry/uuid))
@@ -121,13 +306,15 @@
                      :entry/editable? (:st-entry/editable? e)
                      :entry/dims      (->> (:dims-tx-forms m)
                                            (map :dim-e)
-                                           (into []))}
+                                           (into []))
+                     :source/imported-datetime (tu/now-jdate)}
                     (merge (select-keys e [:source/name :source/frgn-uuid :source/frgn-str-id]))
                     (dissoc :op-type)
                     ;; если уже есть в базе - значит редактирование, иначе добавление
                     (#(if-let [exist-e (e-of-foreign-entry conn e)]
                          (assoc % :db/id exist-e)
                          (assoc % :entry/uuid (d/squuid))))
+
                     (u/remove-nil-keys))
           :pre-txs (into [] (mapcat :pre-txs (:dims-tx-forms m)))
           ;; объединяем транзакции
@@ -135,6 +322,9 @@
         :result-txs)))
 
 
+; (standard-entry->tx-form
+;   (get-conn)
+;   mapped-item)
 
 ; (standard-dim->tx-form
 ;   (get-conn)

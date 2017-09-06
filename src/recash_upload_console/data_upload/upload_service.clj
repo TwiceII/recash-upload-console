@@ -168,19 +168,6 @@
   source)
 
 ;; получить c xml -------------
-(defn assoc-value-zipper-path
-  [m zipper path]
-  (assoc-in m path (xml-u/get-value-in-path zipper path)))
-
-(defn uuid-and-name-for
-  [m zipper tag]
-  ;; если такой тег вообще есть
-  (if (first (xml-u/zipper->inners zipper tag))
-    (-> m
-        (assoc-value-zipper-path zipper [tag :Name])
-        (assoc-value-zipper-path zipper [tag :UUID]))
-    (assoc m tag nil)))
-
 
 (defn zipper->item
   [zipper inner-fields]
