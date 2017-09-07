@@ -69,6 +69,14 @@
     first))
 
 
+(defn str->zipped-source
+  "Перевести xml строку в основную зипперную форму"
+  [xml-str]
+  (-> xml-str
+      java.io.StringReader.
+      xml/parse
+      zip/xml-zip))
+
 (defn zipper->map
   "Преобразовать xml zipper в хэшмэп"
   [zipper fields]

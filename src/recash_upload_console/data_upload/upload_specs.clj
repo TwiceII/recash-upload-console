@@ -167,8 +167,9 @@
                                                 :opt [:source/imported-datetime])))
 (s/def :source/optional (s/keys :req [:source/name]
                                 :opt [:source/imported-datetime]))
-(s/def :source/common (s/or :required :source/required
-                            :none :source/optional))
+(s/def :source/common (s/or :none :source/optional
+                            :required :source/required))
+
 
 ;; -- Для стандартных entry и dimension ---------------------------------------
 ;; standard dim
@@ -179,7 +180,7 @@
 
 (s/def ::st-dim
   (s/or :pre-exist (s/and #(= :must-pre-exist (:st-dim/type %))
-                          (s/merge :source/required
+                          (s/merge :source/common
                                    (s/keys :req [:st-dim/type :st-dim/group-name :st-dim/editable?])))
         :addable   (s/and #(= :addable (:st-dim/type %))
                           (s/merge :source/common
@@ -200,7 +201,8 @@
 (s/def :st-entry/dims (s/coll-of ::st-dim))
 
 (s/def :st-entry/common
-  (s/or :to-delete (s/and #(= :D (:st-entry/op-type %))
+  (s/or :to-ignore #(= :ignore %)
+        :to-delete (s/and #(= :D (:st-entry/op-type %))
                           (s/keys :req [:st-entry/op-type]))
         :to-upsert (s/and #(= :U (:st-entry/op-type %))
                           (s/keys :req [:st-entry/date

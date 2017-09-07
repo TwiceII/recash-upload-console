@@ -6,6 +6,8 @@
             [recash-upload-console.common.utils :as u]
             [recash-upload-console.data-upload.upload-specs :as upl-s]
             [recash-upload-console.data-upload.upload-service :as upl]
+            [recash-upload-console.common.open-handlers :as open-handlers]
+            [recash-upload-console.common.xml-utils :as xml-u]
             [clojure.spec :as s]
             [datomic.api :as d]))
 
@@ -51,6 +53,10 @@
   [mapping-for item field]
   (contains? item field))
 
+(defmethod item-has-field? :csv
+  [mapping-for item field]
+  (<= field (count item)))
+
 (defmulti field-from-item
   (fn [mapping-for item field] mapping-for))
 
@@ -58,6 +64,10 @@
 (defmethod field-from-item :xml
   [mapping-for item field]
   (get item field))
+
+(defmethod field-from-item :csv
+  [mapping-for item field]
+  (nth item field))
 
 
 (defn item->via-mv->field
@@ -111,10 +121,13 @@
                (if-not (item-has-field? mapping-for item dk)
                  (throw (Exception. (str "Not found field: " dk " in item: " item)))
                  (let [current-dim-item (field-from-item mapping-for item dk)
-                       new-st-dim (-> current-dim-item
-                                      (item->via-mv->mapped-item (:defaults parse-params) mapping-for)
-                                      (merge (item->via-mv->mapped-item current-dim-item d-mapping mapping-for)))]
-                   (conj result-dims new-st-dim))))
+                       new-st-dim (when-not (u/nil-or-empty-or-blank? current-dim-item)
+                                    (-> current-dim-item
+                                        (item->via-mv->mapped-item (:defaults parse-params) mapping-for)
+                                        (merge (item->via-mv->mapped-item current-dim-item d-mapping mapping-for))))]
+                   (if new-st-dim
+                     (conj result-dims new-st-dim)
+                     result-dims))))
              [] (:dims parse-params)))
 
 
@@ -145,14 +158,25 @@
    :st-entry/date      [:field 6 :date]
    :st-entry/v-type    [:const :fact]
    :st-entry/editable? [:const false]
-   :st-entry/dims      {:defaults {:source/name       [:const "local-xml"]
-                                   :st-dim/type       [:const :must-pre-exist]
-                                   :st-dim/name       [:field :_this :string]
-                                   :st-dim/editable?  [:const false]}
-                        :dims
-                         {1 {:st-dim/group-name [:const "Счета"]}
-                          3 {:st-dim/group-name [:const "Контрагенты"]}
-                          4 {:st-dim/group-name [:const "Договоры"]}}}})
+   :st-entry/dims      [:custom
+                        :st-entry-dims
+                        {:defaults {:source/name       [:const "local-xml"]
+                                    :st-dim/type       [:const :must-pre-exist]
+                                    :st-dim/name       [:field :_this :str]
+                                    :st-dim/editable?  [:const false]}
+                         :dims
+                          {1 {:st-dim/group-name [:const "Счета"]}
+                           3 {:st-dim/group-name [:const "Контрагенты"]}
+                           4 {:st-dim/group-name [:const "Договоры"]}}}]})
+
+(def test-csv-entry
+  ["Приток" "serq" "ignorestatiya" "" "Без договора" "34234.4" "2017-07-07"])
+
+(def mapped-csv-item
+  (item->via-mv->mapped-item
+    test-csv-entry
+    st-entry-csv-mappings
+    :csv))
 
 
 (def st-entry-json-mappings
@@ -211,10 +235,11 @@
                :where [['?e e-uuid]
                        ['?e id-attr '?id]
                        ['?e :source/name '?src-name]]}]
-    (->> (d/q query db id-val src-name)
-         first
-         (d/entity db)
-         not-empty)))
+    (when id-val
+      (->> (d/q query db id-val src-name)
+           first
+           (d/entity db)
+           not-empty))))
 
 
 (def e-of-foreign-entry (partial e-of-foreign-entity :entry/uuid))
@@ -291,36 +316,220 @@
 (defn standard-entry->tx-form
   "Получить транзакцию из стандартной записи"
   [conn e]
-  (if (= :D (:st-entry/op-type e))
-    ;; при удалении
-    [[:db/retractEntity (e-of-foreign-entity conn e)]]
-    ;; если новое или редактирование
+  (if (= :ignore e)
+    :ignore ; если нужно проигнорировать
+    ;; при обычных обстоятельствах
+    (if (= :D (:st-entry/op-type e))
+      ;; при удалении
+      [[:db/retractEntity (e-of-foreign-entity conn e)]]
+      ;; если новое или редактирование
+      (-> (u/info-map m
+            ;; транзакции по измерениям
+            :dims-tx-forms (map #(standard-dim->tx-form conn %) (:st-entry/dims e))
+            ;; транзакция по самой записи
+            :e-tx (-> {:entry/date      (:st-entry/date e)
+                       :entry/summ      (:st-entry/summ e)
+                       :entry/v-flow    (:st-entry/v-flow e)
+                       :entry/v-type    (:st-entry/v-type e)
+                       :entry/editable? (:st-entry/editable? e)
+                       :entry/dims      (->> (:dims-tx-forms m)
+                                             (map :dim-e)
+                                             (into []))
+                       :source/imported-datetime (tu/now-jdate)}
+                      (merge (select-keys e [:source/name :source/frgn-uuid :source/frgn-str-id]))
+                      (dissoc :op-type)
+                      ;; если уже есть в базе - значит редактирование, иначе добавление
+                      (#(if-let [exist-e (e-of-foreign-entry conn e)]
+                           (assoc % :db/id exist-e)
+                           (assoc % :entry/uuid (d/squuid))))
+
+                      (u/remove-nil-keys))
+            :pre-txs (into [] (mapcat :pre-txs (:dims-tx-forms m)))
+            ;; объединяем транзакции
+            :result-txs (conj (:pre-txs m) (:e-tx m)))
+          :result-txs))))
+
+
+
+(s/explain :recash-upload-console.data-upload.upload-specs/st-entry
+           mapped-csv-item)
+
+(defn test-csv
+  []
+  (standard-entry->tx-form
+    (get-conn)
+    mapped-csv-item))
+
+
+(def test-1c-pp
+  {:item-tag   :Entry
+   :inner-fields   [:Operation
+                    :UUID
+                    :DocumentType
+                    :FlowType
+                    :Number
+                    :Date
+                    :Sum
+                    :Currency
+                    :SumInCurrency
+                    :CurrencyRate
+                    :Comment
+                    :Purpose
+                    :BookingAccount
+                    :IncomingNumber
+                    :IncomingDate
+                    [:Contractor [:Name :UUID]]
+                    [:Contract [:Name :UUID]]
+                    [:BankAccount [:Name :UUID]]]})
+
+
+(def new-1c-test-item
+  (let [e-tag        (:item-tag test-1c-pp)
+        inner-fields (:inner-fields test-1c-pp)
+        str-source
+          "<Entry>
+            <UUID>2d32b7dd-f69d-11e3-8281-00270e03a4fc</UUID>
+            <Operation>U</Operation>
+            <DocumentType>Платежное поручение исходящее</DocumentType>
+            <FlowType>outflow</FlowType>
+            <Number>000373     </Number>
+            <Date>2017-06-20</Date>
+            <Sum>34693.1</Sum>
+            <Currency>KZT</Currency>
+            <CurrencyRate>1</CurrencyRate>
+            <SumInCurrency>34693.1</SumInCurrency>
+            <BookingAccount>1030</BookingAccount>
+            <IncomingNumber/>
+            <IncomingDate>0001-01-01</IncomingDate>
+            <Organization>
+              <UUID>b8da4b27-d788-4117-9df1-38f47c9d4aa4</UUID>
+              <Name>Национальный филиал МТРК \"Мир\" в РК</Name>
+            </Organization>
+            <BankAccount>
+              <UUID>8eef5d30-7c0b-11e3-a339-902b34bf17fe</UUID>
+              <Name>KZ71070KK1KS03771004 в ГУ Комитет казначейства Мин</Name>
+            </BankAccount>
+            <Contractor>
+              <UUID>9047ccf2-00bf-11e3-86dc-00270e03a4fc</UUID>
+              <Name>Рубежанская Ольга Владимировна</Name>
+            </Contractor>
+            <Category>
+              <UUID>078aad36-7016-11e2-8d6d-001d7da1f613</UUID>
+              <Name>Алименты</Name>
+            </Category>
+            <Purpose>
+        Сумма 34 693-10 тенге в т.ч. НДС(12%) 0-00 тенге Алименты за май 2014</Purpose>
+            <Comment/>
+          </Entry>"
+        ;; предполагается, что xml/parse и zip/xml-zip делались выше
+        zipped-source (xml-u/str->zipped-source str-source)]
+    (-> zipped-source
+        (xml-u/zipper->inners e-tag)
+        (#(map (fn [z] (upl/zipper->item z inner-fields))
+               %))
+        first)))
+
+
+(standard-entry->tx-form
+  (get-conn)
+  (item->via-mv->mapped-item
+    new-1c-test-item
+    st-entry-xml-mappings
+    :xml))
+
+(defmulti ignore-parsing?
+  (fn [item pred-key] pred-key))
+
+
+(defmethod ignore-parsing? :entry-date-before-2017?
+  [item pred-key]
+  (println "ignore-parsing? :entry-date-before-2017?")
+  (println "item: " item)
+  (let [date (upl/parse-by-type {:type :date} (:Date item))]
+    (tu/jdates-before? date (tu/jdate 2017 1 1))))
+
+
+(defn parse-item
+  [parse-params item]
+  (let [{:keys [parse-type parse-to ignore-parsing-when mappings]} parse-params]
     (-> (u/info-map m
-          ;; транзакции по измерениям
-          :dims-tx-forms (map #(standard-dim->tx-form conn %) (:st-entry/dims e))
-          ;; транзакция по самой записи
-          :e-tx (-> {:entry/date      (:st-entry/date e)
-                     :entry/summ      (:st-entry/summ e)
-                     :entry/v-flow    (:st-entry/v-flow e)
-                     :entry/v-type    (:st-entry/v-type e)
-                     :entry/editable? (:st-entry/editable? e)
-                     :entry/dims      (->> (:dims-tx-forms m)
-                                           (map :dim-e)
-                                           (into []))
-                     :source/imported-datetime (tu/now-jdate)}
-                    (merge (select-keys e [:source/name :source/frgn-uuid :source/frgn-str-id]))
-                    (dissoc :op-type)
-                    ;; если уже есть в базе - значит редактирование, иначе добавление
-                    (#(if-let [exist-e (e-of-foreign-entry conn e)]
-                         (assoc % :db/id exist-e)
-                         (assoc % :entry/uuid (d/squuid))))
+          :item item
+          :ignore-parse? (if ignore-parsing-when
+                           (ignore-parsing? item ignore-parsing-when)
+                           false)
+          :mapped-item (if-not (:ignore-parse? m)
+                         (item->via-mv->mapped-item item mappings parse-type)
+                         :ignore))
+        :mapped-item)))
 
-                    (u/remove-nil-keys))
-          :pre-txs (into [] (mapcat :pre-txs (:dims-tx-forms m)))
-          ;; объединяем транзакции
-          :result-txs (conj (:pre-txs m) (:e-tx m)))
-        :result-txs)))
 
+(defmethod validate-ent :st-entry
+  [conn ek e]
+  (if (s/valid? ::recash-upload-console.data-upload.upload-specs/st-entry e)
+    []
+    [(s/explain-str ::recash-upload-console.data-upload.upload-specs/entry-1c-spec e)]))
+
+
+(def local-xml-1c-parsing
+ {:parse-type :xml
+  :item-tag   :Entry
+  :inner-fields  [:Operation
+                  :UUID
+                  :DocumentType
+                  :FlowType
+                  :Number
+                  :Date
+                  :Sum
+                  :Currency
+                  :SumInCurrency
+                  :CurrencyRate
+                  :Comment
+                  :Purpose
+                  :BookingAccount
+                  :IncomingNumber
+                  :IncomingDate
+                  [:Contractor [:Name :UUID]]
+                  [:Contract [:Name :UUID]]
+                  [:BankAccount [:Name :UUID]]]
+  :parse-to :st-entry
+  :ignore-parsing-when  :entry-date-before-2017?
+  :mappings
+    {:source/name        [:const "1С"]
+     :source/frgn-uuid   [:field :UUID :uuid]
+     :st-entry/op-type   [:field :Operation :match {"U" :U  "D" :D}]
+     :st-entry/date      [:field :Date :date]
+     :st-entry/summ      [:field :Sum :double]
+     :st-entry/v-flow    [:field :FlowType :match {"inflow" :inflow "outflow" :outflow}]
+     :st-entry/v-type    [:const :fact]
+     :st-entry/editable? [:const false]
+     :st-entry/dims      [:custom
+                          :st-entry-dims
+                          {:defaults {:source/name       [:const "1С"]
+                                      :source/frgn-uuid  [:field :UUID :uuid]
+                                      :st-dim/type       [:const :addable]
+                                      :st-dim/name       [:field :Name :str]
+                                      :st-dim/editable?  [:const false]}
+                           :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}
+                                  :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
+                                  :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}})
+
+
+
+(parse-item local-xml-1c-parsing
+            new-1c-test-item)
+
+; (upl/get-items-from-source stage-config source)
+;
+;
+; (open-handlers/open-and-process
+;   :xml :open-type
+;   (second proc-type)
+;   (:file-name proc)
+;   (fn [d]
+;     (u-s/process-source-with-config conn
+;                                     upl-config
+;                                     d))
+;   {})
 
 ; (standard-entry->tx-form
 ;   (get-conn)

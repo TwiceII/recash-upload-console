@@ -5,7 +5,15 @@
 
 
 (defn nil-or-empty? [x]
-  (or (nil? x) (empty? x)))
+  (or (nil? x)
+      (and (coll? x)
+           (empty? x))))
+
+(defn nil-or-empty-or-blank?
+  [x]
+  (or (nil-or-empty? x)
+      (and (string? x)
+           (cs/blank? x))))
 
 
 (defn in?
