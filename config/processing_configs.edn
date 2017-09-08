@@ -1,0 +1,55 @@
+{:processing-1c-entries
+ {:id   :processing-1c-entries
+  :name "Обработка xml от 1С"
+  :stages
+    [{:id :stage-etl-entries-1c
+      :name "ETL самих записей с xml"
+      :run-when :always
+      :action
+       {:action-type :etl-by-items
+        :load-params
+         {:type :datomic-tx}
+        :pnm-params
+         {:parse {:from :xml
+                  :item-params {:tag :Entry
+                                :inner-fields  [:Operation
+                                                :UUID
+                                                :DocumentType
+                                                :FlowType
+                                                :Number
+                                                :Date
+                                                :Sum
+                                                :Currency
+                                                :SumInCurrency
+                                                :CurrencyRate
+                                                :Comment
+                                                :Purpose
+                                                :BookingAccount
+                                                :IncomingNumber
+                                                :IncomingDate
+                                                [:Contractor [:Name :UUID]]
+                                                [:Contract [:Name :UUID]]
+                                                [:BankAccount [:Name :UUID]]]}}
+          :mapping
+           {:to :st-entry
+            :ignore-when :entry-date-before-2017?
+            :via {:method :mpvectors
+                  :params
+                   {:source/name        [:const "1С"]
+                    :source/frgn-uuid   [:field :UUID :uuid]
+                    :st-entry/op-type   [:field :Operation :match {"U" :U  "D" :D}]
+                    :st-entry/date      [:field :Date :date]
+                    :st-entry/summ      [:field :Sum :double]
+                    :st-entry/v-flow    [:field :FlowType :match {"inflow" :inflow "outflow" :outflow}]
+                    :st-entry/v-type    [:const :fact]
+                    :st-entry/editable? [:const false]
+                    :st-entry/dims      [:custom
+                                         :st-entry-dims
+                                         {:defaults {:source/name       [:const "1С"]
+                                                     :source/frgn-uuid  [:field :UUID :uuid]
+                                                     :st-dim/type       [:const :addable]
+                                                     :st-dim/name       [:field :Name :str]
+                                                     :st-dim/editable?  [:const false]}
+                                          :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}}}]}}}}}}]}}
+                                                 ; :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
+                                                 ; :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}}}}}

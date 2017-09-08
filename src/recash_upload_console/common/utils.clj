@@ -9,6 +9,7 @@
       (and (coll? x)
            (empty? x))))
 
+
 (defn nil-or-empty-or-blank?
   [x]
   (or (nil-or-empty? x)
