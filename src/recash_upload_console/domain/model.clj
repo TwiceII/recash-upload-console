@@ -3,6 +3,14 @@
   (:require [datomic.api :as d]
             [recash-upload-console.domain.datomic-utils :as du]))
 
+;; -- Testing
+(def db-uri
+  "datomic:sql://recash-local?jdbc:postgresql://localhost:5432/recash-local?user=datomic&password=datomic")
+
+(defn get-conn
+  []
+  (d/connect db-uri))
+
 
 (def dim-group-name->uuid
   (partial du/get-uuid-by-name :dim-group/uuid :dim-group/name))
@@ -33,3 +41,45 @@
                 [?e :dimension/uuid-1c ?dim-uuid-1c]]
              (d/db conn) dim-uuid-1c)
        ffirst))
+
+
+
+(defn id-pair-for-foreign-entity
+  [e]
+  (if-let [uuid (:source/frgn-uuid e)] ; приоритет у uuid
+    [:source/frgn-uuid uuid]
+    [:source/frgn-str-id  (:source/frgn-uuid e)]))
+
+
+(defn e-of-foreign-entity
+  "Получить entity импортированной сущности"
+  [e-uuid conn e]
+  (let [[id-attr id-val] (id-pair-for-foreign-entity e)
+        src-name (:source/name e)
+        db (d/db conn)
+        query {:find '[?e]
+               :in '[$ ?id ?src-name]
+               :where [['?e e-uuid]
+                       ['?e id-attr '?id]
+                       ['?e :source/name '?src-name]]}]
+    (when id-val
+      (->> (d/q query db id-val src-name)
+           ffirst
+           (#(do
+               (println "d/entity-for: " %)
+               (d/entity db %)))
+           not-empty))))
+
+
+(def e-of-foreign-entry (partial e-of-foreign-entity :entry/uuid))
+(def e-of-foreign-dimension (partial e-of-foreign-entity :dimension/uuid))
+
+
+(defn e-of-dim-group-by-name
+  "Получить e по названию группы"
+  [conn dg-name]
+  (-> (d/q '[:find ?e
+             :in $ ?dg-name
+             :where [?e :dim-group/name ?dg-name]]
+           (d/db conn) dg-name)
+      ffirst))

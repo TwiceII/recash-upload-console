@@ -10,15 +10,19 @@
             [recash-upload-console.common.xml-utils :as xml-u]
             [clojure.spec :as s]
             [datomic.api :as d]
+            [recash-upload-console.processings.etl :as etl]
             [recash-upload-console.processings.parsing-and-mapping
              :refer [item->custom->v
                      ignore-mapping?
                      item->field-value
                      item-has-field?
                      map-item-via
-                     v-by-type]]
+                     v-by-type] :as pnm]
             [recash-upload-console.processings.loading
-             :refer [ent->load-item]]))
+             :refer [ent->load-item] :as l]
+            [recash-upload-console.processings.validating
+             :refer [validate-mapped-item]]
+            [recash-upload-console.processings.processing :as prcs]))
 
 ;; -- Testing
 (def db-uri
@@ -33,8 +37,10 @@
 ;; -- ET Side -----------------------------------------------------------------
 (defmethod ignore-mapping? :entry-date-before-2017?
   [item pred-key]
-  (let [date (v-by-type (:Date item) {} :date)]
-    (tu/jdates-before? date (tu/jdate 2017 1 1))))
+  (if-not (= "D" (:Operation item))
+    (let [date (v-by-type (:Date item) {} :date)]
+      (tu/jdates-before? date (tu/jdate 2017 1 1)))
+    false))
 
 
 (defmethod item->custom->v :st-entry-dims
@@ -58,35 +64,14 @@
              [] (:dims custom-params)))
 
 
+(defmethod validate-mapped-item :st-entry
+  [conn mapped-item mapped-item-type]
+  (if (s/valid? ::recash-upload-console.data-upload.upload-specs/st-entry mapped-item)
+   []
+   [(s/explain-str ::recash-upload-console.data-upload.upload-specs/st-entry mapped-item)]))
+
+
 ;; -- LOAD Side ---------------------------------------------------------------
-(defn id-pair-for-foreign-entity
-  [e]
-  (if-let [uuid (:source/frgn-uuid e)] ; приоритет у uuid
-    [:source/frgn-uuid uuid]
-    [:source/frgn-str-id  (:source/frgn-uuid e)]))
-
-
-(defn e-of-foreign-entity
-  "Получить entity импортированной сущности"
-  [e-uuid conn e]
-  (let [[id-attr id-val] (id-pair-for-foreign-entity e)
-        src-name (:source/name e)
-        db (d/db conn)
-        query {:find '[?e]
-               :in '[$ ?id ?src-name]
-               :where [['?e e-uuid]
-                       ['?e id-attr '?id]
-                       ['?e :source/name '?src-name]]}]
-    (when id-val
-      (->> (d/q query db id-val src-name)
-           first
-           (d/entity db)
-           not-empty))))
-
-
-(def e-of-foreign-entry (partial e-of-foreign-entity :entry/uuid))
-(def e-of-foreign-dimension (partial e-of-foreign-entity :dimension/uuid))
-
 
 (defn temp-id-for-st-dim
   "Получить временный id для измерения"
@@ -103,13 +88,16 @@
   [conn dim]
   (let [group-name (:st-dim/group-name dim)]
     (if-let [dg-eid (:db/id (du/attr-val->e-single conn :dim-group/name group-name))]
-      (-> {:dimension/uuid (d/squuid)
-           :dimension/name (:st-dim/name dim)
-           :dimension/editable? (:st-dim/editable? dim)
-           :db/id (temp-id-for-st-dim dim)
-           :dimension/group dg-eid
-           :source/imported-datetime (tu/now-jdate)}
-          (merge (select-keys dim [:source/name :source/frgn-uuid :source/frgn-str-id])))
+      (if-let [new-dim-name (:st-dim/name dim)]
+        (-> {:dimension/uuid (d/squuid)
+             :dimension/name new-dim-name
+             :dimension/editable? (:st-dim/editable? dim)
+             :db/id (temp-id-for-st-dim dim)
+             :dimension/group dg-eid
+             :source/imported-datetime (tu/now-jdate)}
+            (merge (select-keys dim [:source/name :source/frgn-uuid :source/frgn-str-id])))
+        (throw (Exception. (str "Не передано название для нового измерения. Описание измерения:"
+                                dim))))
       (throw (Exception. (str "Не найдена группа с названием: " group-name))))))
 
 
@@ -124,10 +112,11 @@
          dg-name         :st-dim/group-name} dim]
     (-> (u/info-map m
           ;; entity уже существующего измерения
-          :exist-e (or (e-of-foreign-dimension conn dim)     ; по foreign id
-                       (du/attr-val->e-single conn           ; по названию
-                                              :dimension/name
-                                              (:st-dim/name dim)))
+          :exist-e (or (m/e-of-foreign-dimension conn dim)     ; по foreign id
+                       (when (:st-dim/name dim)              ; по названию
+                         (du/attr-val->e-single conn
+                                                :dimension/name
+                                                (:st-dim/name dim))))
           ;; tx для уже существующего измерения
           :exist-tx-form (when (:exist-e m)
                           {:type :exists
@@ -159,9 +148,17 @@
 (defmethod ent->load-item [:st-entry :datomic-tx]
   [conn mapped-item mapped-item-type load-item-type]
   (let [e mapped-item]
+    (println "ent->load-item")
+    (println e)
     (if (= :D (:st-entry/op-type e))
       ;; при удалении
-      [[:db/retractEntity (e-of-foreign-entity conn e)]]
+      (if-let [e-to-delete (m/e-of-foreign-entry conn e)]
+        [[:db/retractEntity e-to-delete]]
+        ;; TODO: стоит ли выкидывать исключение или просто игнорить?
+        (do
+          (println "IGNORE because couldn't find entry to delete: " e)
+          :ignore))
+        ; (throw (Exception. ()"Не найдена запись для удаления: " e)))
       ;; если новое или редактирование
       (-> (u/info-map m
             ;; транзакции по измерениям
@@ -179,15 +176,214 @@
                       (merge (select-keys e [:source/name :source/frgn-uuid :source/frgn-str-id]))
                       (dissoc :op-type)
                       ;; если уже есть в базе - значит редактирование, иначе добавление
-                      (#(if-let [exist-e (e-of-foreign-entry conn e)]
-                           (assoc % :db/id exist-e)
+                      (#(if-let [exist-e (m/e-of-foreign-entry conn e)]
+                           (assoc % :db/id (:db/id exist-e))
                            (assoc % :entry/uuid (d/squuid))))
-
                       (u/remove-nil-keys))
             :pre-txs (into [] (mapcat :pre-txs (:dims-tx-forms m)))
             ;; объединяем транзакции
             :result-txs (conj (:pre-txs m) (:e-tx m)))
           :result-txs))))
+
+;; -- TESTING -----------------------------------------------------------------
+(def test-xml-item
+  {:UUID "568d03ea-be27-4e34-a86f-7ae703a66be4"
+   :Operation "D"
+   :Date nil
+   :Sum nil
+   :FlowType nil
+   :BankAccount nil
+   :Contract nil
+   :Contractor nil})
+  ; {:UUID "568d03ea-be27-4e34-a86f-7ae703a66be4"
+  ;  :Operation "U"
+  ;  :Date "2018-01-22"
+  ;  :Sum "13261737"
+  ;  :FlowType "inflow"
+  ;  :BankAccount {:Name "252160458( рос.рубли ЦКБ)"
+  ;                :UUID "ac1ca3e9-7014-11e2-8d6d-001d7da1f613"}
+  ;  :Contract   {:Name "Без договора"
+  ;               :UUID "bc1ca3e9-7014-11e2-8d6d-001d7da1f614"}})
+
+
+(def test-process-params
+ {:id   :processing-1c-entries
+  :name "Обработка xml от 1С"
+  :stages
+    [{:id :stage-etl-entries-1c
+      :name "ETL самих записей с xml"
+      :run-when :always
+      :action
+       {:action-type :etl-by-items
+        :load-params
+         {:type :datomic-tx}
+        :pnm-params
+         {:parse {:from :xml
+                  :item-params {:tag :Entry
+                                :inner-fields  [:Operation
+                                                :UUID
+                                                :DocumentType
+                                                :FlowType
+                                                :Number
+                                                :Date
+                                                :Sum
+                                                :Currency
+                                                :SumInCurrency
+                                                :CurrencyRate
+                                                :Comment
+                                                :Purpose
+                                                :BookingAccount
+                                                :IncomingNumber
+                                                :IncomingDate
+                                                [:Contractor [:Name :UUID]]
+                                                [:Contract [:Name :UUID]]
+                                                [:BankAccount [:Name :UUID]]]}}
+          :mapping
+           {:to :st-entry
+            :ignore-when :entry-date-before-2017?
+            :post-mapping :check-op-type-st-entry
+            :via {:method :mpvectors
+                  :params
+                   {:source/name        [:const "1С"]
+                    :source/frgn-uuid   [:field :UUID :uuid]
+                    :st-entry/op-type   [:field :Operation :match {"U" :U  "D" :D}]
+                    :st-entry/date      [:field :Date :date]
+                    :st-entry/summ      [:field :Sum :double]
+                    :st-entry/v-flow    [:field :FlowType :match {"inflow" :inflow "outflow" :outflow}]
+                    :st-entry/v-type    [:const :fact]
+                    :st-entry/editable? [:const false]
+                    :st-entry/dims      [:custom
+                                         :st-entry-dims
+                                         {:defaults {:source/name       [:const "1С"]
+                                                     :source/frgn-uuid  [:field :UUID :uuid]
+                                                     :st-dim/type       [:const :addable]
+                                                     :st-dim/name       [:field :Name :str]
+                                                     :st-dim/editable?  [:const false]}
+                                          :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}
+                                                 :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
+                                                 :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}}}}}}]})
+
+
+
+(defn test-pnm
+  []
+  (let [pnm-params (get-in test-process-params [:stages 0 :action :pnm-params])]
+    (pnm/item->mapped-item test-xml-item pnm-params)))
+
+
+(defn test-l
+  []
+  (let [mapped-item (test-pnm)
+        conn (get-conn)]
+    (l/mapped-item->load-item conn mapped-item :st-entry :datomic-tx)))
+
+
+(defn test-vld
+  []
+  (let [mapped-item (test-pnm)
+        conn (get-conn)]
+    (validate-mapped-item conn mapped-item :st-entry)))
+
+
+(defn test-etl
+  []
+  (let [conn (get-conn)
+        item test-xml-item
+        pnm-params (get-in test-process-params [:stages 0 :action :pnm-params])
+        load-params (get-in test-process-params [:stages 0 :action :load-params])]
+    (etl/run-etl-item conn item pnm-params load-params)))
+
+
+(defn test-processing
+  []
+  (let [config test-process-params
+        conn (get-conn)]
+    (open-handlers/open-and-process
+      :xml :local-file
+      "import_files/pervichka_test.xml"
+      #(prcs/process-source-with-config conn
+                                        %
+                                        config)
+      {})))
+
+; (s/explain ::recash-upload-console.data-upload.upload-specs/st-entry
+;   {:source/frgn-uuid #uuid "568d03ea-be27-4e34-a86f-7ae703a66be4",
+;    :source/name "1С",
+;    :st-entry/op-type :D})
+
+;; -- TEST JSON ---------------------------------------------------------------
+(def json-str
+  "{\"entries\": [{
+          \"opType\": \"U\",
+          \"id\":  \"selling-3242\",
+          \"date\": \"2017-07-11T10:37:00\",
+          \"flowType\": 0,
+          \"summ\": 3600.68,
+          \"client\": \"client43\",
+          \"store\": \"store34\",
+          \"account\": \"account5\"}]}")
+
+(def json-pnm-params
+   {:parse {:from :json
+            :item-params {:tags :entries}}
+    :mapping
+     {:to :st-entry
+      :post-mapping :check-op-type-st-entry
+      :via {:method :mpvectors
+            :params
+             {:source/name        [:const "ummastore"]
+              :source/frgn-str-id [:field :id :str]
+              :st-entry/op-type   [:field :opType :match {"U" :U  "D" :D}]
+              :st-entry/date      [:field :date :datetime]
+              :st-entry/summ      [:field :summ :double]
+              :st-entry/v-flow    [:field :flowType :match {1 :inflow 0 :outflow}]
+              :st-entry/v-type    [:const :fact]
+              :st-entry/editable? [:const false]
+              :st-entry/dims      [:custom
+                                   :st-entry-dims
+                                   {:defaults {:source/name        [:const "ummastore"]
+                                               :source/frgn-str-id [:field :_this :str]
+                                               :st-dim/type        [:const :addable]
+                                               :st-dim/editable?   [:const false]}
+                                    :dims {:client  {:st-dim/group-name [:const "Договоры"]}
+                                           :account {:st-dim/group-name [:const "Контрагенты"]}
+                                           :store   {:st-dim/group-name [:const "Статьи"]}}}]}}}})
+
+(def test-json-item
+  {:flowType 0
+   :date "2017-07-11T10:37:00",
+   :summ 3600.68,
+   :store "store34",
+   :client "client43",
+   :account "account5",
+   :opType "U",
+   :id "selling-3242"})
+
+
+(defn test-json-mapping
+  []
+  (pnm/item->mapped-item test-json-item json-pnm-params))
+
+
+(defn test-json-l
+  []
+  (let [mapped-item (test-json-mapping)
+        conn (get-conn)]
+    (l/mapped-item->load-item conn mapped-item :st-entry :datomic-tx)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ; (defn t-loading

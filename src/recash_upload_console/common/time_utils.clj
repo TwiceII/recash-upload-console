@@ -226,11 +226,21 @@
   (datetime->iso-js (tc/from-date jd)))
 
 (defn parse-to-jdate
-  "Спарсить и перевести в java.date"
+  "Спарсить и перевести в java.date (только даты, без времени)"
   [s]
   (->> s
        parse
        (#(t/date-time (t/year %) (t/month %) (t/day %)))
+       tc/to-date))
+
+
+(defn parse-datetime-to-jdate
+  "Спарсить и перевести в java.date (с учетом времени)"
+  [s]
+  (->> s
+       parse
+       (#(t/date-time (t/year %) (t/month %) (t/day %)
+                      (t/hour %) (t/minute %) (t/second %)))
        tc/to-date))
 
 

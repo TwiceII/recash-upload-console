@@ -2,4 +2,4 @@
  :init-data-edn-path "config/init-data.edn"
  :schema-edn-path "config/schema.edn"
  :files-proc-edn-path "config/file_processings.edn"
- :upload-configs-path "config/upload_configs.edn"}
+ :processing-configs-path "config/processing_configs.edn"}

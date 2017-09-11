@@ -1,5 +1,5 @@
-{:processing-1c-entries
- {:id   :processing-1c-entries
+{:processing-1c-local-xml
+ {:id   :processing-1c-local-xml
   :name "Обработка xml от 1С"
   :stages
     [{:id :stage-etl-entries-1c
@@ -33,6 +33,7 @@
           :mapping
            {:to :st-entry
             :ignore-when :entry-date-before-2017?
+            :post-mapping :check-op-type-st-entry
             :via {:method :mpvectors
                   :params
                    {:source/name        [:const "1С"]
@@ -50,6 +51,6 @@
                                                      :st-dim/type       [:const :addable]
                                                      :st-dim/name       [:field :Name :str]
                                                      :st-dim/editable?  [:const false]}
-                                          :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}}}]}}}}}}]}}
-                                                 ; :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
-                                                 ; :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}}}}}
+                                          :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}
+                                                 :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
+                                                 :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}}}}}}]}}

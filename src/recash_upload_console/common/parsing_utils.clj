@@ -26,3 +26,10 @@
   (-> x
       ; (cljstr/replace " 0:00:00" "")
       tu/parse-to-jdate))
+
+
+(defn entry-datetime-str->jdate
+  [x]
+  (-> x
+      ; (cljstr/replace " 0:00:00" "")
+      tu/parse-datetime-to-jdate))

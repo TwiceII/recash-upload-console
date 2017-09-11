@@ -22,10 +22,10 @@
   (println (str "Start processing: " processing-id))
   (let [db-uri           (:db-uri settings)
         file-proc-config (edn/read-string (slurp (:files-proc-edn-path settings)))
-        upload-configs   (edn/read-string (slurp (:upload-configs-path settings)))]
+        proc-configs     (edn/read-string (slurp (:processing-configs-path settings)))]
     (pm/run-local-file-processing db-uri
                                   file-proc-config
-                                  upload-configs
+                                  proc-configs
                                   processing-id)
     (println "----------------------------------------")
     (println "processed successfully")))

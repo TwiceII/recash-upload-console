@@ -162,7 +162,7 @@
 (s/def :source/frgn-str-id string?)
 (s/def :source/imported-datetime inst?)
 (s/def :source/required (s/or :w-uuid (s/keys :req [:source/name :source/frgn-uuid]
-                                            :opt [:source/imported-datetime])
+                                              :opt [:source/imported-datetime])
                               :w-str-id (s/keys :req [:source/name :source/frgn-str-id]
                                                 :opt [:source/imported-datetime])))
 (s/def :source/optional (s/keys :req [:source/name]
@@ -172,7 +172,7 @@
 
 
 ;; -- Для стандартных entry и dimension ---------------------------------------
-;; standard dim
+;; standard dim для entry
 (s/def :st-dim/type #{:addable :must-pre-exist})
 (s/def :st-dim/name string?)
 (s/def :st-dim/group-name string?)
@@ -215,3 +215,59 @@
                                   :opt [:st-entry/uuid]))))
 
 (s/def ::st-entry (s/merge :st-entry/common :source/common))
+
+
+;; -- Измерения в виде справочников
+;; (обычно используются внутри standard-entry как must-pre-exist)
+;; синхронизируются с источниками
+
+(s/def :dict-dim/uuid uuid?)
+(s/def :dict-dim/name string?)
+(s/def :dict-dim/group-name string?)
+(s/def :dict-dim/op-type #{:D :U})
+(s/def :dict-dim/editable? boolean?)
+(s/def :dict-dim/common
+  (s/or :to-ignore #(= :ignore %)
+        :to-delete (s/and #(= :D (:dict-dim/op-type %))
+                          (s/keys :req [:dict-dim/op-type]))
+        :to-upsert (s/and #(= :U (:dict-dim/op-type %))
+                          (s/keys :req [:dict-dim/name
+                                        :dict-dim/group-name]
+                                  :opt [:dict-dim/uuid]))))
+(s/def ::dict-dim (s/merge :dict-dim/common :source/common))
+
+
+; (s/explain ::dict-dim
+;   {:dict-dim/name "Магазин Алматы"
+;    :dict-dim/group-name "Магазины"
+;    :dict-dim/op-type :U
+;    :source/name "ummastore"
+;    :source/frgn-str-id "store-24"})
+;
+; (s/explain ::dict-dim
+;   {:dict-dim/op-type :D
+;    :source/name "ummastore"
+;    :source/frgn-str-id "store-45"})
+
+
+
+
+; (s/explain :st-entry/common
+;   {:source/frgn-uuid #uuid "568d03ea-be27-4e34-a86f-7ae703a66be4",
+;    :st-entry/editable? false,
+;    :st-entry/summ nil,
+;    :st-entry/v-type :fact,
+;    :st-entry/v-flow nil,
+;    :source/name "1С",
+;    :st-entry/date nil,
+;    :st-entry/dims [],
+;    :st-entry/op-type :D})
+;
+; (s/explain :st-entry/common
+;   :ignore)
+;
+;
+; (s/explain :st-entry/common
+;   {:source/frgn-uuid #uuid "568d03ea-be27-4e34-a86f-7ae703a66be4",
+;    :source/name "1C"
+;    :st-entry/op-type :D})

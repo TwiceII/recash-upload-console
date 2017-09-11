@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.payment-package.org" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<PackageNumber>11</PackageNumber>
+	<Entry>
+		<UUID>c52ded68-7992-11e2-8038-00270e03a4fc</UUID>
+		<Operation>U</Operation>
+		<DocumentType>Платежное поручение входящее</DocumentType>
+		<FlowType>inflow</FlowType>
+		<Number>00000000001</Number>
+		<Date>2013-02-04</Date>
+		<Sum>150480</Sum>
+		<Currency>KZT</Currency>
+		<CurrencyRate>1</CurrencyRate>
+		<SumInCurrency>150480</SumInCurrency>
+		<BookingAccount>1030</BookingAccount>
+		<IncomingNumber>12</IncomingNumber>
+		<IncomingDate>2013-02-04</IncomingDate>
+		<Organization>
+			<UUID>b8da4b27-d788-4117-9df1-38f47c9d4aa4</UUID>
+			<Name>Национальный филиал МТРК "Мир" в РК</Name>
+		</Organization>
+		<BankAccount>
+			<UUID>ac1ca3e6-7014-11e2-8d6d-001d7da1f613</UUID>
+			<Name>200467187 (тенговый)</Name>
+		</BankAccount>
+		<Contractor>
+			<UUID>308ebe86-ddbc-4984-9254-a2ac92a53c9b</UUID>
+			<Name>Представительство Акционерного обществПервый канал</Name>
+		</Contractor>
+		<Contract>
+			<UUID>078aad3e-7016-11e2-8d6d-001d7da1f613</UUID>
+			<Name>№1 от 01.01.2013</Name>
+		</Contract>
+		<Purpose/>
+		<Comment/>
+	</Entry>
+	<Entry>
+		<UUID>0850b08f-fb89-11e3-8255-00270e03a4fc</UUID>
+		<Operation>U</Operation>
+		<DocumentType>Платежное поручение входящее</DocumentType>
+		<FlowType>inflow</FlowType>
+		<Number>00000000107</Number>
+		<Date>2017-06-23</Date>
+		<Sum>30000</Sum>
+		<Currency>KZT</Currency>
+		<CurrencyRate>1</CurrencyRate>
+		<SumInCurrency>30000</SumInCurrency>
+		<BookingAccount>1030</BookingAccount>
+		<IncomingNumber>31</IncomingNumber>
+		<IncomingDate>2014-06-23</IncomingDate>
+		<Organization>
+			<UUID>b8da4b27-d788-4117-9df1-38f47c9d4aa4</UUID>
+			<Name>Национальный филиал МТРК "Мир" в РК</Name>
+		</Organization>
+		<BankAccount>
+			<UUID>67531379-24f6-11e3-b503-902b34bf17fe</UUID>
+			<Name>KZ86914398914BC36670 тенге в Сбербанк</Name>
+		</BankAccount>
+		<Contractor>
+			<UUID>498d03ea-be27-4e34-a86f-7ae703a66bef</UUID>
+			<Name>Руд Экспресс 071040000524</Name>
+		</Contractor>
+		<Contract>
+			<UUID>7967d70f-8b8f-11e2-97b3-001d7dd2bcc3</UUID>
+			<Name>№ 64 01/04/09</Name>
+		</Contract>
+		<Purpose/>
+		<Comment>ретрансляция за 1-3 кварталы 2014</Comment>
+	</Entry>
+	<Entry>
+		<UUID>daa82642-28a7-11e7-b426-74d02b9092de</UUID>
+		<Operation>D</Operation>
+	</Entry>
+	<Entry>
+		<UUID>eec0d194-cfb2-11e4-a006-74d02b9092de</UUID>
+		<Operation>D</Operation>
+	</Entry>
+</package>

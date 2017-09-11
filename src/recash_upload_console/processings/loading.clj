@@ -29,4 +29,6 @@
 ;; для datomic транзакций
 (defmethod process-load-item :datomic-tx
   [conn load-item load-item-type]
+  ; (println "TRANSACTING DATOMIC TX FOR: ")
+  ; (println load-item)
   (du/transact-and-return conn load-item))

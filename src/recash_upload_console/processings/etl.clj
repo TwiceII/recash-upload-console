@@ -18,15 +18,17 @@
             :item           item
             :mapped-item    (pnm/item->mapped-item (:item m)
                                                    pnm-params)
-            :valid-errors   (vld/validate-mapped-item conn
-                                                      (:mapped-item m)
-                                                      mapped-item-type)
+            :valid-errors   (if-not (= :ignore (:mapped-item m)) ; если не игнорируем
+                              (vld/validate-mapped-item conn
+                                                        (:mapped-item m)
+                                                        mapped-item-type)
+                              [])
             :load-item      (let [errors (:valid-errors m)]
                               (when (u/nil-or-empty? errors) ;; если нет ошибок
-                                (l/ent->load-item conn
-                                                  (:mapped-item m)
-                                                  mapped-item-type
-                                                  (:type load-params))))
+                                (l/mapped-item->load-item conn
+                                                          (:mapped-item m)
+                                                          mapped-item-type
+                                                          (:type load-params))))
             :process-results (if-not (u/nil-or-empty? (:valid-errors m))
                                (do
                                  (println "process-item validation fail: ")
@@ -63,6 +65,7 @@
 
 (defmethod run-action-on-source :etl-by-items
   [conn source action-params]
+  (println "run-action-on-source :etl-by-items")
   (let [{:keys [pnm-params load-params]} action-params]
     (try
       ;; без with-open

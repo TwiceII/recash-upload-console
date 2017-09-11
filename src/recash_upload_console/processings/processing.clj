@@ -8,6 +8,7 @@
   "Обработка этапа с записью в лог, ловлей исключений и т.д."
   [conn source stage-config]
   (println "processing stage: " (:name stage-config))
+  (println "action-params: " (:action stage-config))
   (try
     (let [stage-output (act/run-action-on-source conn source (:action stage-config))]
       (do
