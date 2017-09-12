@@ -5,7 +5,8 @@
             [clojure.string :as cljstr]
             [recash-upload-console.domain.db-manager :as dbm]
             [recash-upload-console.domain.datomic-utils :as du]
-            [recash-upload-console.data-upload.processing-manager :as pm]))
+            [recash-upload-console.data-upload.processing-manager :as pm]
+            [recash-upload-console.schedulers.chime-scheduler :as chime]))
 
 ;; -- Команды -----------------------------------------------------------------
 (defn exit-cmd
@@ -15,6 +16,15 @@
   (System/exit 0))
 
 
+(defn start-schedules-cmd
+  "Команда для начала заданий по расписанию"
+  [settings]
+  (println "-----------------------")
+  (println "Starting schedules ")
+  (chime/start-all-schedules!)
+  (println "schedules started ..."))
+
+
 (defn run-processing-cmd
   "Команда для начала процессинга загрузки данных с файла"
   [settings [processing-id]]
@@ -22,11 +32,13 @@
   (println (str "Start processing: " processing-id))
   (let [db-uri           (:db-uri settings)
         file-proc-config (edn/read-string (slurp (:files-proc-edn-path settings)))
-        proc-configs     (edn/read-string (slurp (:processing-configs-path settings)))]
-    (pm/run-local-file-processing db-uri
-                                  file-proc-config
-                                  proc-configs
-                                  processing-id)
+        proc-configs     (edn/read-string (slurp (:processing-configs-path settings)))
+        result  (pm/run-local-file-processing db-uri
+                                              file-proc-config
+                                              proc-configs
+                                              processing-id)]
+    (println "processing results: ")
+    (println result)
     (println "----------------------------------------")
     (println "processed successfully")))
 
@@ -82,6 +94,7 @@
    "run-processing"    run-processing-cmd
    "ensure-schema"     ensure-schema-cmd
    "transact-edn"      transact-edn-cmd
+   "start-schedules"   start-schedules-cmd
    "exit"              exit-cmd})
 
 

@@ -1,0 +1,15 @@
+[{:dim-group/uuid (recash-upload-console.domain.datomic-utils/new-uuid)
+  :dim-group/name "Клиенты"
+  :dim-group/editable? false
+  :dim-group/group-type :primary
+  :dim-group/created-datetime #inst "2017-09-12T00:00:00"}
+ {:dim-group/uuid (recash-upload-console.domain.datomic-utils/new-uuid)
+  :dim-group/name "Счета BRK"
+  :dim-group/editable? false
+  :dim-group/group-type :primary
+  :dim-group/created-datetime #inst "2017-09-12T01:00:00"}
+ {:dim-group/uuid (recash-upload-console.domain.datomic-utils/new-uuid)
+  :dim-group/name "Магазины"
+  :dim-group/editable? false
+  :dim-group/group-type :primary
+  :dim-group/created-datetime #inst "2017-09-12T02:00:00"}]

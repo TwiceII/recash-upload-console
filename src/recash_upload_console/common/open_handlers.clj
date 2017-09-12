@@ -8,12 +8,14 @@
             [recash-upload-console.common.xml-utils :as xml-u]
             [clojure.data.xml :as xml]
             [clojure.zip :as zip]
-            [clojure.data.zip.xml :as zip-xml]))
+            [clojure.data.zip.xml :as zip-xml]
+            [clojure.data.json :as json]))
 
 
 ;; -- открытие потока ---------------------------------------------------------
 (defmulti get-stream-to-open
   (fn [src-type open-type src params] [src-type open-type]))
+
 
 (defmethod get-stream-to-open [:xml :local-file]
   [src-type open-type src params]
@@ -25,11 +27,19 @@
         io/file
         io/input-stream)))
 
+
+(defmethod get-stream-to-open [:json :local-file]
+  [src-type open-type src params]
+  ;; как src выступает название локал.файла
+  (io/reader src))
+
+
 (defmethod get-stream-to-open [:xml :http-body]
   [src-type open-type src params]
   ;; как src выступает :body с запроса, уже в виде потока байтов
   ;; поэтому передаем напрямую
   src)
+
 
 (defmethod get-stream-to-open [:csv :local-file]
   [src-type open-type src params]
@@ -53,6 +63,9 @@
       xml/parse
       zip/xml-zip))
 
+(defmethod read-in-open :json
+  [src s-type params]
+  (slurp src))
 
 ;; -- главные функции ---------------------------------------------------------
 (defn do-with-open
@@ -76,5 +89,9 @@
   (do-with-open src-type open-type src process-fn params))
 
 (defmethod open-and-process [:csv :local-file]
+  [src-type open-type src process-fn params]
+  (do-with-open src-type open-type src process-fn params))
+
+(defmethod open-and-process [:json :local-file]
   [src-type open-type src process-fn params]
   (do-with-open src-type open-type src process-fn params))

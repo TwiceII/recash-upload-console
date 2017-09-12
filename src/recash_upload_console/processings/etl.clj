@@ -10,7 +10,7 @@
 
 (defn run-etl-item
   "Общий метод для ETL обработки отдельного элемента из источника"
-  [conn item pnm-params load-params]
+  [conn item pnm-params load-params debug-mode?]
   (println "start process item: " item)
   (try
     (let [mapped-item-type (get-in pnm-params [:mapping :to])]
@@ -48,7 +48,8 @@
                                     ; (println "txs: " (:txs m))
                                     (l/process-load-item conn
                                                          (:load-item m)
-                                                         (:type load-params)))
+                                                         (:type load-params)
+                                                         debug-mode?))
                                   ;; игнорируем
                                   (do
                                     (println "process item ignore")
@@ -59,18 +60,23 @@
           (#(-> [(:item %) (:load-item %) (:process-results %)]))))
     (catch Exception e (do
                         ;; запись в логи
-                        (println "Exception on process item")
-                        (throw e)))))
+                        (println "Exception on ETL-ing item: ")
+                        (println e)
+                        (log/info :msg (str "process-item FAILURE (exception)")
+                                  :item item
+                                  :exception e)
+                        ;; неудачный результат
+                        [item nil :failure]))))
 
 
 (defmethod run-action-on-source :etl-by-items
   [conn source action-params]
   (println "run-action-on-source :etl-by-items")
-  (let [{:keys [pnm-params load-params]} action-params]
+  (let [{:keys [pnm-params load-params debug-mode?]} action-params]
     (try
       ;; без with-open
       (->> (pnm/source->items source pnm-params)
-           (map #(run-etl-item conn % pnm-params load-params))
+           (map #(run-etl-item conn % pnm-params load-params debug-mode?))
            doall)
       (catch Exception e (do
                           (println "e on run-action-on-source :etl-by-items " e)

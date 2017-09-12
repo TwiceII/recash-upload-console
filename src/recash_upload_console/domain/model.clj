@@ -48,7 +48,7 @@
   [e]
   (if-let [uuid (:source/frgn-uuid e)] ; приоритет у uuid
     [:source/frgn-uuid uuid]
-    [:source/frgn-str-id  (:source/frgn-uuid e)]))
+    [:source/frgn-str-id  (:source/frgn-str-id e)]))
 
 
 (defn e-of-foreign-entity
@@ -75,11 +75,14 @@
 (def e-of-foreign-dimension (partial e-of-foreign-entity :dimension/uuid))
 
 
-(defn e-of-dim-group-by-name
-  "Получить e по названию группы"
+(defn dim-group-by-name
+  "Получить entity группы измерений по названию"
   [conn dg-name]
-  (-> (d/q '[:find ?e
-             :in $ ?dg-name
-             :where [?e :dim-group/name ?dg-name]]
-           (d/db conn) dg-name)
-      ffirst))
+  (let [db (d/db conn)]
+    (-> (d/q '[:find ?e
+               :in $ ?dg-name
+               :where [?e :dim-group/name ?dg-name]]
+             db dg-name)
+        ffirst
+        (#(d/entity db %))
+        not-empty)))

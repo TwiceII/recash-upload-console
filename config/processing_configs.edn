@@ -38,10 +38,10 @@
                   :params
                    {:source/name        [:const "1С"]
                     :source/frgn-uuid   [:field :UUID :uuid]
-                    :st-entry/op-type   [:field :Operation :match {"U" :U  "D" :D}]
+                    :st-entry/op-type   [:field :Operation :match {:ms {"U" :U  "D" :D}}]
                     :st-entry/date      [:field :Date :date]
                     :st-entry/summ      [:field :Sum :double]
-                    :st-entry/v-flow    [:field :FlowType :match {"inflow" :inflow "outflow" :outflow}]
+                    :st-entry/v-flow    [:field :FlowType :match {:ms {"inflow" :inflow "outflow" :outflow}}]
                     :st-entry/v-type    [:const :fact]
                     :st-entry/editable? [:const false]
                     :st-entry/dims      [:custom
@@ -53,4 +53,63 @@
                                                      :st-dim/editable?  [:const false]}
                                           :dims {:BankAccount {:st-dim/group-name [:const "Счета"]}
                                                  :Contractor  {:st-dim/group-name [:const "Контрагенты"]}
-                                                 :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}}}}}}]}}
+                                                 :Contract    {:st-dim/group-name [:const "Договоры"]}}}]}}}}}}]}
+ :processing-ummastore-json
+ {:id   :processing-ummastore-json
+  :name "Обработка json от ummastore"
+  :stages
+    [{:id :stage-etl-dict-dims
+      :name "ETL справочников с json"
+      :run-when :always
+      :action
+       {:action-type :etl-by-items
+        ; :debug-mode? true
+        :load-params
+         {:type :datomic-tx}
+        :pnm-params
+         {:parse {:from :json
+                  :item-params {:tags :catalogs}}
+          :mapping
+           {:to :dict-dim
+            :post-mapping :check-op-type-dict-dim
+            :via {:method :mpvectors
+                  :params
+                   {:source/name         [:const "ummastore"]
+                    :source/frgn-str-id  [:field :id :str]
+                    :dict-dim/op-type    [:field :opType :match {:ms {"U" :U  "D" :D}}]
+                    :dict-dim/name       [:field :name :str {:opt? true}]
+                    :dict-dim/group-name [:field :catName :str {:opt? true}]}}}}}}
+     {:id :stage-etl-entries
+      :name "ETL самих записей с json"
+      :run-when [:stage-etl-dict-dims]
+      :action
+       {:action-type :etl-by-items
+        ; :debug-mode? true
+        :load-params
+          {:type :datomic-tx}
+         :pnm-params
+          {:parse {:from :json
+                   :item-params {:tags :entries}}
+           :mapping
+            {:to :st-entry
+             :post-mapping :check-op-type-st-entry
+             :via {:method :mpvectors
+                   :params
+                    {:source/name        [:const "ummastore"]
+                     :source/frgn-str-id [:field :id :str]
+                     :st-entry/op-type   [:field :opType :match {:ms {"U" :U  "D" :D}}]
+                     :st-entry/date      [:field :date :datetime {:opt? true}]
+                     :st-entry/summ      [:field :summ :double {:opt? true}]
+                     :st-entry/v-flow    [:field :flowType :match {:opt? true :ms {1 :inflow 0 :outflow}}]
+                     :st-entry/v-type    [:const :fact]
+                     :st-entry/editable? [:const false]
+                     :st-entry/dims      [:custom
+                                          :st-entry-dims
+                                          {:opt? true ; часть измерений может отсутствовать в entry
+                                           :defaults {:source/name        [:const "ummastore"]
+                                                      :source/frgn-str-id [:field :_this :str]
+                                                      :st-dim/type        [:const :must-pre-exist]
+                                                      :st-dim/editable?   [:const false]}
+                                           :dims {:client  {:st-dim/group-name [:const "Клиенты"]}
+                                                  :store   {:st-dim/group-name [:const "Магазины"]}
+                                                  :account {:st-dim/group-name [:const "Счета BRK"]}}}]}}}}}}]}}

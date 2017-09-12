@@ -23,12 +23,14 @@
 
 (defmulti process-load-item
   "Обработка load-item для загрузки в БД"
-  (fn [conn load-item load-item-type] load-item-type))
+  (fn [conn load-item load-item-type debug-mode?] load-item-type))
 
 
 ;; для datomic транзакций
 (defmethod process-load-item :datomic-tx
-  [conn load-item load-item-type]
-  ; (println "TRANSACTING DATOMIC TX FOR: ")
-  ; (println load-item)
-  (du/transact-and-return conn load-item))
+  [conn load-item load-item-type debug-mode?]
+  (if debug-mode?
+    (do
+      (println "DEBUG TRANSACTING DATOMIC TX: ")
+      (println load-item))
+    (du/transact-and-return conn load-item)))

@@ -50,7 +50,7 @@
                                                 :no-errors (vals (results-map))))]
                         (if (every? #(= :success (:result %)) stages-to-check)
                           ;; запускаем обработку этапа
-                          (process-stage-with-logs conn stage-config source)
+                          (process-stage-with-logs conn source stage-config)
                           {:result :did-not-run}))))))
               {} (:stages config))
     ;; статистика

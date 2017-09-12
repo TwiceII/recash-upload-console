@@ -9,6 +9,7 @@
                  [orchestra "0.2.0"]
                  [proto-repl "0.3.1"]
                  [clj-time "0.13.0"]
+                 [jarohen/chime "0.2.2"]
                  [org.clojure/data.xml "0.0.8"]
                  [org.clojure/data.zip "0.1.2"]
                  [org.clojure/data.csv "0.1.3"]

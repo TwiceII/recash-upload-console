@@ -7,6 +7,7 @@
             [recash-upload-console.processings.processing :as prcs]
             [recash-upload-console.processings.etl :as etl]
             [recash-upload-console.data-upload.upload-standard-entry]
+            [recash-upload-console.data-upload.upload-dict-dim]
             [datomic.api :as d]))
 
 

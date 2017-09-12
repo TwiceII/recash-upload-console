@@ -1,0 +1,47 @@
+{
+	"catalogs": [{
+					"opType": "U",
+				    "id": "store-213",
+				    "name": "Новый магазин",
+				    "catName": "Магазины"
+				 },
+				 {
+					"opType": "U",
+				    "id": "client-6543",
+				    "name": "87077077070 - Канат",
+				    "catName": "Клиенты"
+				 },
+				 {
+					"opType": "U",
+				  "id": "account-5",
+				  "name": "Касса Алматы",
+				  "catName": "Счета BRK"
+				 },
+				 {
+					"opType": "D",
+				    "id": "account-213"
+				 }],
+    "entries": [{
+					"opType": "U",
+					"id":  "selling-3242",
+					"date": "2017-07-11T10:37:00",
+					"flowType": 0,
+					"summ": 3600.0,
+					"client": "client-6543",
+					"store": "store-213",
+					"account": "account-5"
+				 },
+				 {
+				 	"opType": "U",
+				 	"id":  "cashflow-3246",
+					"date": "2017-07-12T10:37:00",
+					"flowType": 1,
+					"summ": 1500,
+					"store": "store-213",
+					"account": "account-5"
+				 },
+				 {
+				 	"opType": "D",
+				 	"id": "cashflow-3247"
+				 }]
+}

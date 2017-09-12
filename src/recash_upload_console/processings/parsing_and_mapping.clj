@@ -26,7 +26,9 @@
   [v params type]
   (if (double? v)
     v
-    (pu/str->double v)))
+    (if (or (int? v))
+      (double v)
+      (pu/str->double v))))
 
 (defmethod v-by-type :date
   [v params type]
@@ -38,7 +40,7 @@
 
 (defmethod v-by-type :match
   [v params type]
-  (match-from-mapping params v))
+  (match-from-mapping (:ms params) v))
 
 
 ;; -- Кастомные методы для получения поля из item
@@ -112,10 +114,12 @@
                    ;; если :_this
                    (#(if (= :_this field)
                        %                ; то берем само значение,
-                       ;; есло вложенное поле
+                       ;; если вложенное поле
                        (if (item-has-field? % field item-parsed-from)
                          (item->field-value % field item-parsed-from)
-                         (throw (Exception. (str "Not found field: " field " in item: " item))))))
+                         (if (:opt? params) ; если поле необязательное
+                           nil
+                           (throw (Exception. (str "Not found field: " field " in item: " item)))))))
                    ;; парсим по полю
                    (#(when % ; если есть значение
                        (v-by-type % params by-type)))))
@@ -135,19 +139,6 @@
                                                   mpvector
                                                   item-parsed-from)))
                {} field-mpvectors)))
-
-(defmethod mapped-item->post :check-op-type-st-entry
-  [mapped-item post-kw]
-  (cond-> mapped-item
-          ;; если удаление, то берем только нужные поля
-          (= :D (:st-entry/op-type mapped-item))
-          (select-keys [:st-entry/op-type
-                        :st-entry/uuid
-                        :source/name
-                        :source/frgn-uuid
-                        :source/frgn-str-id
-                        :source/imported-datetime])))
-
 
 
 (defn item->mapped-item
