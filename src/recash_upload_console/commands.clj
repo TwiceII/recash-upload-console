@@ -21,7 +21,7 @@
   [settings]
   (println "-----------------------")
   (println "Starting schedules ")
-  (chime/start-all-schedules!)
+  (chime/start-all-schedules! settings)
   (println "schedules started ..."))
 
 

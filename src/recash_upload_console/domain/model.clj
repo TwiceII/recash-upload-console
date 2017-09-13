@@ -86,3 +86,14 @@
         ffirst
         (#(d/entity db %))
         not-empty)))
+
+
+(defn last-successfull-datetime-ummastore-sync
+  [conn]
+  (->> (d/q '[:find ?dt
+              :in $ ?st
+              :where [?e :ummst-sync/last-to-date ?dt]
+                     [?e :ummst-sync/request-status ?st]]
+             (d/db conn) :success)
+       (sort-by first)
+       first))

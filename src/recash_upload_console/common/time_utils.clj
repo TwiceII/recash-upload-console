@@ -327,3 +327,10 @@
                   tc/from-date
                   (#(t/date-time (t/year %) 12 31))
                   tc/to-date)))
+
+
+(defn starting-jdate-for-sync
+  []
+  (-> (tc/to-local-date-time (now-datetime))
+      (t/minus (t/hours 1))
+      (tc/to-date)))

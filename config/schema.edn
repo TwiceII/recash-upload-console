@@ -264,6 +264,23 @@
  {:db/ident :success}
  {:db/ident :failure}
 
+
+ {:db/valueType :db.type/instant,
+  :db/ident :ummst-sync/request-time
+  :db/index true
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Время обращения запроса к ummastore"}
+ {:db/valueType :db.type/instant,
+  :db/index true
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Использованная to-date"
+  :db/ident :ummst-sync/last-to-date}
+ {:db/valueType :db.type/ref,
+  :db/ident :ummst-sync/request-status
+  :db/cardinality :db.cardinality/one,
+  :db/doc "Статуса запроса к ummastore (см. status-idents)"}
+
+
  ;; общие аттрибуты для потенциально импортированных сущностей (измерений и записей)
  {:db/ident       :source/name
   :db/doc         "Источник сущности"

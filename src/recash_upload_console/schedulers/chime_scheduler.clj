@@ -10,10 +10,10 @@
 
 (defn common-handler
   "Общий обработчик заданий с логированием"
-  [schedule-time handler-fn postfix]
+  [schedule-time handler-fn postfix settings]
   (try
     ; (log/log-scheduler-start schedule-time postfix)
-    (handler-fn schedule-time)
+    (handler-fn settings schedule-time)
     (catch Exception e (do
                          (println "exception on scheduler: " postfix)
                          (println e)))))
@@ -24,17 +24,18 @@
 
 (defn schedule-handler
   "Обработчик заданий"
-  [handler-fn postfix]
+  [handler-fn postfix settings]
   (fn [schedule-time]
-    (common-handler schedule-time handler-fn postfix)))
+    (common-handler schedule-time handler-fn postfix settings)))
 
 
 (defn start-schedule!
   "Запустить задание"
-  [sch-hm]
+  [sch-hm settings]
   (chime-at (:schedule sch-hm)
             (schedule-handler (:task-fn sch-hm)
-                              (:postfix sch-hm))))
+                              (:postfix sch-hm)
+                              settings)))
 
 
 ;;=========================================================================
@@ -48,9 +49,9 @@
 
 (defn start-all-schedules!
   "Запустить все задания по расписанию"
-  []
+  [settings]
   (println "start-all-schedules")
   (doseq [s all-schedules]
     (do
       (println "started " (:postfix s))
-      (start-schedule! s))))
+      (start-schedule! s settings))))
