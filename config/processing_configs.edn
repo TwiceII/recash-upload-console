@@ -63,7 +63,7 @@
       :run-when :always
       :action
        {:action-type :etl-by-items
-        ; :debug-mode? true
+        :debug-mode? true
         :load-params
          {:type :datomic-tx}
         :pnm-params
@@ -84,7 +84,7 @@
       :run-when [:stage-etl-dict-dims]
       :action
        {:action-type :etl-by-items
-        ; :debug-mode? true
+        :debug-mode? true
         :load-params
           {:type :datomic-tx}
          :pnm-params

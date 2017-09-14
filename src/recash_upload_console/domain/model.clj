@@ -1,7 +1,8 @@
 (ns recash-upload-console.domain.model
   "Доменная часть данных: ф-ции для записывания/считывания с БД"
   (:require [datomic.api :as d]
-            [recash-upload-console.domain.datomic-utils :as du]))
+            [recash-upload-console.domain.datomic-utils :as du]
+            [recash-upload-console.common.time-utils :as tu]))
 
 ;; -- Testing
 (def db-uri
@@ -89,6 +90,7 @@
 
 
 (defn last-successfull-datetime-ummastore-sync
+  "Последняя удачно обработанная дата-время по ummastore"
   [conn]
   (->> (d/q '[:find ?dt
               :in $ ?st
@@ -96,4 +98,13 @@
                      [?e :ummst-sync/request-status ?st]]
              (d/db conn) :success)
        (sort-by first)
-       first))
+       reverse
+       ffirst))
+
+
+(defn new-last-datetime-ummastore-sync
+  "Записать новую обработанную дату-время (со статусом)"
+  [conn datetime status]
+  (du/transact-and-return conn [{:ummst-sync/last-to-date datetime
+                                 :ummst-sync/request-time (tu/now-jdate)
+                                 :ummst-sync/request-status status}]))
